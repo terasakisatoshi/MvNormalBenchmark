@@ -2,6 +2,16 @@
 
 Julia の `Distributions.jl` が提供する `MvNormal` のサンプリング方法を、Julia（自前実装と公式実装）、C++23、Fortran 2023、Rust 2024 で実装したリポジトリです。
 
+## TL;DR
+
+実行結果と各言語の速度比較は [benchmark/REPORT.md](./benchmark/REPORT.md) を参照してください。
+
+レポートを再生成するには、次を実行します。
+
+```sh
+./benchmark/run_and_report.sh
+```
+
 ## アルゴリズム
 
 平均ベクトル `μ` と正定値共分散行列 `Σ` に対して、構築時に
