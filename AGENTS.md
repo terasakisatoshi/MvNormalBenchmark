@@ -11,9 +11,11 @@
 3. `x = μ + L z` を計算する。
 
 標準正規乱数には、Marsaglia の polar 法と256層の Ziggurat 法を実装します。
-C++・Fortran・Rust と Julia 自前実装の `polar`／`ziggurat` 経路は、比較可能な
-xorshift64 ベースの乱数生成器を使います。Julia の `--normal julia` と
-`Distributions.jl` の経路は Julia/Random の標準実装を使うため、比較用 RNG とは別です。
+C++・Fortran・Rust・Python と Julia 自前実装の `polar`／`ziggurat` 経路は、
+比較可能な xorshift64 ベースの乱数生成器を使います。Julia の `--normal julia`、
+`Distributions.jl`、Rust の `--normal rand-distr`（`rand_distr` の Zignor
+Ziggurat）と `--normal statrs`（`statrs` の `MultivariateNormal`）の経路は
+各言語・crate の標準実装を使うため、比較用 RNG とは別です。
 共通 runner では、自前 RNG のサンプル生成シードを全言語で `0x5EED2021`
 （10進数 `1592598561`）に統一します。
 ベンチマーク入力も全言語で共通化し、0始まりの添字に対して
@@ -24,7 +26,8 @@ xorshift64 ベースの乱数生成器を使います。Julia の `--normal juli
 - `julia/`: 自前実装と公式 `Distributions.jl` のベンチマーク
 - `cxx/`: C++23 実装
 - `fortran/`: Fortran 2023 実装
-- `rust/`: Rust 2024 実装
+- `rust/`: Rust 2024 実装（`rand_distr` の Ziggurat を使う `rand-distr` 経路も含む）
+- `python/`: NumPy/Numba 実装
 - `benchmark/`: 共通runner、CSV、Markdownレポート生成
 
 共分散行列は正方形・対称・有限・正定値でなければなりません。次元不一致や不正な共分散行列は、各言語で明示的にエラーにしてください。
@@ -95,16 +98,30 @@ cargo run --release --manifest-path rust/Cargo.toml -- \
   --dim 8 --samples 100 --repeats 2
 cargo run --release --manifest-path rust/Cargo.toml -- \
   --dim 8 --samples 100 --repeats 2 --normal ziggurat
+cargo run --release --manifest-path rust/Cargo.toml -- \
+  --dim 8 --samples 100 --repeats 2 --normal rand-distr
+cargo run --release --manifest-path rust/Cargo.toml -- \
+  --dim 8 --samples 100 --repeats 2 --normal statrs
+
+# Python (NumPy/Numba)
+uv run --project python python/test_mvnormal.py
+uv run --project python python/benchmark.py \
+  --dim 8 --samples 100 --repeats 2 --normal polar
+uv run --project python python/benchmark.py \
+  --dim 8 --samples 100 --repeats 2 --normal ziggurat
 ```
 
 各 CLI の `--normal` は `polar` または `ziggurat` を受け付けます。省略時は
 `polar` です。Julia 自前実装だけは、Julia 標準 RNG を選ぶ `--normal julia` も
-受け付けます。
+受け付けます。Rust だけは `rand_distr` の Zignor Ziggurat を使う
+`--normal rand-distr` と、`statrs::MultivariateNormal` を使う `--normal statrs`
+も受け付けます。
 
 各ベンチマークは次のCSV 1行を標準出力に出します。`language` には例えば
-`cxx-polar`、`fortran-ziggurat`、`rust-ziggurat`、`julia-polar` のように
-言語と標準正規乱数方式が入ります。Julia 標準 RNG の行は `julia`、公式実装は
-`julia-distributions` です。
+`cxx-polar`、`fortran-ziggurat`、`rust-ziggurat`、`python-ziggurat`、
+`julia-polar` のように言語と標準正規乱数方式が入ります。Julia 標準 RNG の行は
+`julia`、公式実装は `julia-distributions`、Rust の `rand_distr`／`statrs` 経路は
+`rust-rand-distr`／`rust-statrs` です。
 
 ```text
 language,dim,samples,repeats,setup_sec,avg_sample_sec,min_sample_sec,checksum
@@ -126,7 +143,9 @@ DIM=128 SAMPLES=100000 REPEATS=10 \
 ```
 
 `benchmark/run.sh` は Julia project を自動指定します。`Distributions.jl` が利用できれば、公式 `MvNormal` の行も `julia-distributions` として追加します。
-また、各言語の `polar` と `ziggurat` を自動的に実行します。
+また、各言語の `polar` と `ziggurat` を自動的に実行し、Rust では `rand-distr` と `statrs` も、
+Python は `uv`（または NumPy/Numba 入りの `python3`）が見つかる場合に
+`python-polar`／`python-ziggurat` も追加します。
 
 ### 4. Markdown レポートを生成する
 
@@ -154,7 +173,7 @@ python3 benchmark/generate_report.py \
 - `polar` と `ziggurat` の行は標準正規乱数アルゴリズム別の比較であり、同じ方式名だけで数値列の一致を保証するものではありません。
 - ビット単位の数値列を一致させるには、PRNG の状態更新、シード、整数から一様乱数への変換、Ziggurat テーブル、棄却判定、浮動小数点演算、数学関数の実装まで一致させる必要があります。
 - コンパイル時間は比較対象に含めません。
-- `benchmark/.build/`、`rust/target/`、Fortranの `.mod` と実行ファイルは生成物です。ベンチマーク結果は再生成できるため、手作業で修正しません。
+- `benchmark/.build/`、`rust/target/`、`python/.venv/`、`python/__pycache__/`、Fortranの `.mod` と実行ファイルは生成物です。ベンチマーク結果は再生成できるため、手作業で修正しません。
 
 ## 変更後の確認
 
@@ -162,6 +181,7 @@ python3 benchmark/generate_report.py \
 
 ```sh
 cargo test --manifest-path rust/Cargo.toml
+uv run --project python python/test_mvnormal.py
 DIM=8 SAMPLES=200 REPEATS=2 ./benchmark/run.sh /tmp/mvnormal-results.csv
 python3 benchmark/generate_report.py \
   /tmp/mvnormal-results.csv /tmp/mvnormal-report.md

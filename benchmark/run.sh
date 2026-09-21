@@ -95,6 +95,33 @@ run_rust() {
             --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" \
             --normal "$normal" >> "$OUTPUT_FILE"
     done
+    for normal in rand-distr statrs; do
+        "$BUILD_DIR/rust-target/release/mvnormal_benchmark" \
+            --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" \
+            --normal "$normal" >> "$OUTPUT_FILE"
+    done
+}
+
+run_python() {
+    local script="$ROOT_DIR/python/benchmark.py"
+    local project="$ROOT_DIR/python"
+    local python_cmd=()
+
+    if command -v uv >/dev/null 2>&1; then
+        python_cmd=(uv run --project "$project")
+    elif command -v python3 >/dev/null 2>&1 && \
+        python3 -c 'import numpy, numba' >/dev/null 2>&1; then
+        python_cmd=(python3)
+    else
+        echo 'Skipping Python: uv (or python3 with numpy and numba) was not found.' >&2
+        return 0
+    fi
+
+    for normal in polar ziggurat; do
+        "${python_cmd[@]}" "$script" \
+            --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" \
+            --normal "$normal" >> "$OUTPUT_FILE"
+    done
 }
 
 run_julia
@@ -102,5 +129,6 @@ run_julia_distributions
 run_cxx
 run_fortran
 run_rust
+run_python
 
 echo "Benchmark results written to $OUTPUT_FILE"

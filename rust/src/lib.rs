@@ -309,6 +309,42 @@ impl MvNormal {
         Ok(())
     }
 
+    /// Draw one sample using an external standard-normal generator.
+    ///
+    /// This lets the benchmark plug in `rand_distr`'s Ziggurat-based standard
+    /// normal while keeping the same `mean + L * z` transformation and the
+    /// bottom-up in-place update used by the other samplers.
+    pub fn sample_inplace_with<G>(
+        &self,
+        mut generate_normal: G,
+        output: &mut [f64],
+    ) -> Result<(), SampleError>
+    where
+        G: FnMut() -> f64,
+    {
+        if output.len() != self.dimension {
+            return Err(SampleError::BufferLength {
+                name: "output",
+                expected: self.dimension,
+                actual: output.len(),
+            });
+        }
+
+        for value in output.iter_mut() {
+            *value = generate_normal();
+        }
+
+        for row in (0..self.dimension).rev() {
+            let row_start = row * self.dimension;
+            let mut value = self.mean[row];
+            for column in 0..=row {
+                value += self.cholesky[row_start + column] * output[column];
+            }
+            output[row] = value;
+        }
+        Ok(())
+    }
+
     /// Draw one sample while reusing caller-provided scratch and output buffers.
     pub fn sample_into(
         &self,
@@ -548,6 +584,20 @@ mod tests {
             .unwrap();
 
         assert_eq!(buffered_output, inplace_output);
+    }
+
+    #[test]
+    fn sample_inplace_with_external_generator() {
+        let distribution = MvNormal::new(
+            vec![0.5, -1.0],
+            vec![vec![1.0, 0.0], vec![0.0, 1.0]],
+        )
+        .unwrap();
+        let mut output = [0.0; 2];
+        distribution
+            .sample_inplace_with(|| 0.0, &mut output)
+            .unwrap();
+        assert_eq!(output, [0.5, -1.0]);
     }
 
     #[test]

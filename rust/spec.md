@@ -60,7 +60,48 @@ cholesky[row * dimension + column]
 
 `sample_into` は `scratch` と `output` を分ける互換APIとして残しています。
 
+## rand_distr 経路
+
+`--normal rand-distr` は `rand_distr` クレートの `StandardNormal` を使います。
+`StandardNormal` は ZIGNOR 版の Ziggurat 法で実装されています。
+
+```rust
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand_distr::{Distribution, StandardNormal};
+
+let mut rng = StdRng::seed_from_u64(0x5EED2021);
+let normal = StandardNormal;
+distribution.sample_inplace_with(|| normal.sample(&mut rng), &mut output)?;
+```
+
+`MvNormal::sample_inplace_with` は外部の標準正規生成器をクロージャで受け取り、
+`mean + L z` の変換だけを共通化します。`StandardNormal` は `StdRng` 独自の乱数
+列を使うため、共通 xorshift64 を使う `polar`/`ziggurat` とは乱数列が異なります。
+
+## statrs 経路
+
+`--normal statrs` は `statrs` クレートの `MultivariateNormal` を使います。
+`statrs::distribution::MultivariateNormal::new(mean, cov)` は共分散の対称性と
+正定値性を検証して Cholesky 因子を保持し、`Distribution` 実装の `sample` は
+`L z + μ` を計算します。`Distributions.jl` の `MvNormal` に最も近い crate
+実装です。
+
+```rust
+use statrs::distribution::MultivariateNormal;
+
+let distribution = MultivariateNormal::new(mean, covariance_flat)?;
+let sample = distribution.sample(&mut rng);
+```
+
+平均は `Vec<f64>`、共分散は行優先に平坦化した `Vec<f64>` を渡します。共分散は
+対称なので列優先の nalgebra 内部表現でも同じ並びになります。`z` は `StdRng` を
+乱源とする `Normal(0, 1)` から生成されます。
+
 ## 再現性
 
 同じシードと同じビルド条件では、Rust 実装内で同じ乱数列を再生成できます。
-他言語とは RNG の状態更新、棄却回数、浮動小数点ライブラリが異なるため、チェックサム一致は要求しません。
+`polar`/`ziggurat` は共通 xorshift64 を使うため、乱数消費順序を揃えれば他言語と
+checksum が一致します。`rand-distr` は独自の乱数列を使うため一致しません。
+他言語とは RNG の状態更新、棄却回数、浮動小数点ライブラリが異なるため、
+チェックサム一致は要求しません。

@@ -109,6 +109,9 @@ def generate_report(rows: list[dict[str, str]], source: Path) -> str:
             "operations, Cholesky factors, and accumulation order differ.",
             "- Julia's default and `Distributions.jl` rows use Julia/Random and "
             "are not part of the common custom-RNG stream.",
+            "- The Rust `rand-distr` and `statrs` rows use `StdRng` (and "
+            "`rand_distr`'s Zignor Ziggurat inside `statrs`) and are not part of "
+            "the common custom-RNG stream.",
             "- Compilation time is not included in the sampling timing.",
             "- The Julia official row is included when `Distributions.jl` is "
             "available in `julia/Project.toml`.",

@@ -1,6 +1,6 @@
 # MvNormal benchmark
 
-`run.sh` は、4言語の実装を同じ条件でビルド・実行し、結果をCSVに集約します。Julia で `Distributions.jl` が利用可能な場合は、公式 `MvNormal` の結果も `julia-distributions` として追加します。
+`run.sh` は、5言語の実装を同じ条件でビルド・実行し、結果をCSVに集約します。Julia で `Distributions.jl` が利用可能な場合は、公式 `MvNormal` の結果も `julia-distributions` として追加します。Python は `uv`（または NumPy/Numba 入りの `python3`）が見つかる場合に `python-polar`/`python-ziggurat` を追加します。Rust は `rust-rand-distr` と `rust-statrs` も追加します。
 
 Julia の依存環境は `julia/Project.toml` で管理しています。初回だけ次を実行してください。
 
@@ -35,7 +35,15 @@ DIM=128 SAMPLES=100000 REPEATS=10 ./benchmark/run.sh
 
 Julia の自前実装だけを個別に測定する場合は、`--normal julia`、`--normal polar`、
 `--normal ziggurat` を選択できます。共通 runner は各言語について `polar` と
-`ziggurat` の両方を自動的に測定します。
+`ziggurat` の両方を自動的に測定します。Rust はこれに加えて、`rand_distr`
+クレートの Ziggurat を使う `--normal rand-distr` と、`statrs` クレートの
+`MultivariateNormal` を使う `--normal statrs` を測定します。
+
+Python の依存は `python/pyproject.toml` で管理します。初回だけ次を実行してください。
+
+```sh
+uv sync --project python
+```
 
 CSVからMarkdownの速度比較表を生成する場合:
 
