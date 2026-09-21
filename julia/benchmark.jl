@@ -1,11 +1,14 @@
 include(joinpath(@__DIR__, "mvnormal.jl"))
 
+const COMPARISON_NORMAL_SEED = 0x5EED2021
+
 function parse_args(args)
     values = Dict{String, Int}(
         "dim" => 10,
         "samples" => 10_000,
         "repeats" => 5,
     )
+    normal = :julia
     i = 1
     while i <= length(args)
         arg = args[i]
@@ -16,6 +19,13 @@ function parse_args(args)
         else
             i < length(args) || throw(ArgumentError("missing value for $arg"))
             (arg[3:end], args[i + 1])
+        end
+        if key == "normal"
+            value in ("julia", "polar", "ziggurat") ||
+                throw(ArgumentError("--normal must be julia, polar, or ziggurat"))
+            normal = Symbol(value)
+            i += occursin('=', arg) ? 1 : 2
+            continue
         end
         haskey(values, key) || throw(ArgumentError("unknown option: --$key"))
         parsed = try
@@ -31,27 +41,33 @@ function parse_args(args)
     values["dim"] > 0 || throw(ArgumentError("--dim must be positive"))
     values["samples"] > 0 || throw(ArgumentError("--samples must be positive"))
     values["repeats"] > 0 || throw(ArgumentError("--repeats must be positive"))
-    return values
+    return (values=values, normal=normal)
 end
 
 function main(args)
-    options = parse_args(args)
+    parsed = parse_args(args)
+    options = parsed.values
+    normal = parsed.normal
     dim = options["dim"]
     nsamples = options["samples"]
     repeats = options["repeats"]
 
-    Random.seed!(0xc0ffee)
-    setup_rng = Random.default_rng()
-    μ = randn(setup_rng, dim)
-    A = randn(setup_rng, dim, dim)
-    Σ = A * A' + dim * I
+    normal === :julia && Random.seed!(0xc0ffee)
+    μ = [0.01 * (index - 1) for index in 1:dim]
+    Σ = [ldexp(1.0, -2 * abs(row - column)) for row in 1:dim, column in 1:dim]
 
     setup_start = time_ns()
     d = MvNormal(μ, Σ)
     setup_sec = (time_ns() - setup_start) / 1.0e9
 
     # Compile the sampling path before timing it.
-    warmup_rng = Random.default_rng()
+    warmup_rng = if normal === :julia
+        Random.default_rng()
+    elseif normal === :polar
+        MarsagliaPolarRNG(0xabad1dea)
+    else
+        ZigguratRNG(0xabad1dea)
+    end
     out = Vector{Float64}(undef, dim)
     warmup_checksum = 0.0
     for _ in 1:nsamples
@@ -61,7 +77,13 @@ function main(args)
 
     sample_times = Vector{Float64}(undef, repeats)
     checksum = 0.0
-    rng = Random.default_rng()
+    rng = if normal === :julia
+        Random.default_rng()
+    elseif normal === :polar
+        MarsagliaPolarRNG(COMPARISON_NORMAL_SEED)
+    else
+        ZigguratRNG(COMPARISON_NORMAL_SEED)
+    end
     for repeat in 1:repeats
         start = time_ns()
         for _ in 1:nsamples
@@ -75,7 +97,8 @@ function main(args)
     checksum += 0.0 * warmup_checksum
     avg_sample_sec = sum(sample_times) / repeats
     min_sample_sec = minimum(sample_times)
-    println("julia,$dim,$nsamples,$repeats,$setup_sec,$avg_sample_sec,$min_sample_sec,$checksum")
+    label = normal === :julia ? "julia" : "julia-$normal"
+    println("$label,$dim,$nsamples,$repeats,$setup_sec,$avg_sample_sec,$min_sample_sec,$checksum")
 end
 
 main(ARGS)

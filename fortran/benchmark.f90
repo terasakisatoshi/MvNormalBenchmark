@@ -1,11 +1,15 @@
 program mvnormal_benchmark
   use iso_fortran_env, only : real64, int32, int64, output_unit
-  use mvnormal_module, only : mvnormal_t, mvnormal_create, normal_rng_t
+  use mvnormal_module, only : mvnormal_t, mvnormal_create, normal_rng_t, &
+                              normal_algorithm_polar, normal_algorithm_ziggurat
   implicit none
+
+  integer(int64), parameter :: comparison_normal_seed = 1592598561_int64
 
   integer(int32) :: dimension
   integer(int32) :: samples
   integer(int32) :: repeats
+  integer :: normal_algorithm
   integer :: argument_count
   integer :: argument_index
   integer :: i
@@ -14,6 +18,7 @@ program mvnormal_benchmark
   integer :: sample_index
   character(len=256) :: argument
   character(len=256) :: value
+  character(len=16) :: algorithm_label
   real(real64), allocatable :: mean(:)
   real(real64), allocatable :: covariance(:,:)
   real(real64), allocatable :: output(:)
@@ -32,6 +37,7 @@ program mvnormal_benchmark
   dimension = 16_int32
   samples = 10000_int32
   repeats = 3_int32
+  normal_algorithm = normal_algorithm_polar
   argument_count = command_argument_count()
   argument_index = 1
 
@@ -47,6 +53,9 @@ program mvnormal_benchmark
     case ('--repeats')
       call next_value(argument_index, value)
       call parse_integer(value, repeats)
+    case ('--normal')
+      call next_value(argument_index, value)
+      call parse_normal(value, normal_algorithm)
     case default
       if (index(trim(argument), '--dim=') == 1) then
         value = argument(7:)
@@ -57,6 +66,9 @@ program mvnormal_benchmark
       else if (index(trim(argument), '--repeats=') == 1) then
         value = argument(11:)
         call parse_integer(value, repeats)
+      else if (index(trim(argument), '--normal=') == 1) then
+        value = argument(10:)
+        call parse_normal(value, normal_algorithm)
       else
         error stop 'usage: benchmark --dim N --samples N --repeats N'
       end if
@@ -71,13 +83,14 @@ program mvnormal_benchmark
   allocate(mean(dimension), covariance(dimension,dimension))
   allocate(output(dimension))
   do i = 1, dimension
-    mean(i) = real(i - 1, real64) / real(max(1, dimension), real64)
+    mean(i) = 0.01_real64 * real(i - 1, real64)
     do j = 1, dimension
-      covariance(i,j) = 0.25_real64 ** abs(i - j)
+      covariance(i,j) = scale(1.0_real64, -2 * abs(i - j))
     end do
   end do
 
-  call rng%seed(1597463007_int64)
+  call rng%seed(comparison_normal_seed)
+  call rng%set_algorithm(normal_algorithm)
   call system_clock(count_rate=clock_rate)
 
   call system_clock(count=clock_start)
@@ -104,8 +117,13 @@ program mvnormal_benchmark
   average_sample_seconds = total_sample_seconds / &
                            real(repeats, real64)
 
-  write(output_unit, '("fortran,", I0, ",", I0, ",", I0, ",", ES0.8, ",", ES0.8, ",", ES0.8, ",", ES0.17)') &
-       dimension, samples, repeats, setup_seconds, average_sample_seconds, &
+  if (normal_algorithm == normal_algorithm_polar) then
+    algorithm_label = 'fortran-polar'
+  else
+    algorithm_label = 'fortran-ziggurat'
+  end if
+  write(output_unit, '(A,",", I0, ",", I0, ",", I0, ",", ES0.8, ",", ES0.8, ",", ES0.8, ",", ES0.17)') &
+       trim(algorithm_label), dimension, samples, repeats, setup_seconds, average_sample_seconds, &
        minimum_sample_seconds, checksum
 
 contains
@@ -131,5 +149,19 @@ contains
       error stop 'invalid integer command-line value'
     end if
   end subroutine parse_integer
+
+  subroutine parse_normal(text, result)
+    character(len=*), intent(in) :: text
+    integer, intent(out) :: result
+
+    select case (trim(text))
+    case ('polar')
+      result = normal_algorithm_polar
+    case ('ziggurat')
+      result = normal_algorithm_ziggurat
+    case default
+      error stop '--normal must be polar or ziggurat'
+    end select
+  end subroutine parse_normal
 
 end program mvnormal_benchmark

@@ -20,10 +20,11 @@ u = (f64(next_u64() >> 11) + 0.5) / 2^53
 
 シード 0 は xorshift の固定点になるため、非ゼロの初期状態へ置き換えます。
 この RNG はベンチマーク用であり、暗号用途には適しません。
+共通ベンチマークのサンプル生成シードは `0x5EED2021` です。
 
 ## 標準正規乱数
 
-標準正規乱数は Marsaglia の polar 法で2個ずつ生成します。
+`NormalAlgorithm::MarsagliaPolar` は Marsaglia の polar 法で2個ずつ生成します。
 
 1. `u` と `v` を区間 `(-1, 1)` から生成する。
 2. `s = u^2 + v^2` を計算する。
@@ -35,6 +36,14 @@ u = (f64(next_u64() >> 11) + 0.5) / 2^53
 
 `fill_standard_normals` は受理したペアを直接スライスへ書き込みます。
 奇数長のスライスを `standard_normal` で埋める場合だけ、余剰の1値を `Option<f64>` に保持します。
+
+`NormalAlgorithm::Ziggurat` は256層のZiggurat法を使います。
+層境界から `k`、`w`、`f` のテーブルを一度だけ生成し、矩形内部の候補を整数比較だけで高速に受理します。
+矩形外の候補は密度比較で再判定し、層0では指数分布を使って正規分布の裾を生成します。
+
+```rust
+let mut rng = StandardRng::with_algorithm(42, NormalAlgorithm::Ziggurat);
+```
 
 ## MvNormal の変換
 

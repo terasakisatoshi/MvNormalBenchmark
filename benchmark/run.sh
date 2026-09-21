@@ -22,7 +22,11 @@ run_julia() {
     fi
 
     julia "${JULIA_PROJECT_ARGS[@]}" "$ROOT_DIR/julia/benchmark.jl" \
-        --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" >> "$OUTPUT_FILE"
+        --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" --normal julia >> "$OUTPUT_FILE"
+    julia "${JULIA_PROJECT_ARGS[@]}" "$ROOT_DIR/julia/benchmark.jl" \
+        --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" --normal polar >> "$OUTPUT_FILE"
+    julia "${JULIA_PROJECT_ARGS[@]}" "$ROOT_DIR/julia/benchmark.jl" \
+        --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" --normal ziggurat >> "$OUTPUT_FILE"
 }
 
 run_julia_distributions() {
@@ -50,8 +54,11 @@ run_cxx() {
         "$ROOT_DIR/cxx/benchmark.cpp" \
         -o "$BUILD_DIR/mvnormal_cxx"
 
-    "$BUILD_DIR/mvnormal_cxx" \
-        --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" >> "$OUTPUT_FILE"
+    for normal in polar ziggurat; do
+        "$BUILD_DIR/mvnormal_cxx" \
+            --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" \
+            --normal "$normal" >> "$OUTPUT_FILE"
+    done
 }
 
 run_fortran() {
@@ -67,8 +74,11 @@ run_fortran() {
         "$ROOT_DIR/fortran/benchmark.f90" \
         -o "$BUILD_DIR/mvnormal_fortran"
 
-    "$BUILD_DIR/mvnormal_fortran" \
-        --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" >> "$OUTPUT_FILE"
+    for normal in polar ziggurat; do
+        "$BUILD_DIR/mvnormal_fortran" \
+            --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" \
+            --normal "$normal" >> "$OUTPUT_FILE"
+    done
 }
 
 run_rust() {
@@ -80,8 +90,11 @@ run_rust() {
     CARGO_TARGET_DIR="$BUILD_DIR/rust-target" \
         cargo build --release --manifest-path "$ROOT_DIR/rust/Cargo.toml"
 
-    "$BUILD_DIR/rust-target/release/mvnormal_benchmark" \
-        --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" >> "$OUTPUT_FILE"
+    for normal in polar ziggurat; do
+        "$BUILD_DIR/rust-target/release/mvnormal_benchmark" \
+            --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" \
+            --normal "$normal" >> "$OUTPUT_FILE"
+    done
 }
 
 run_julia

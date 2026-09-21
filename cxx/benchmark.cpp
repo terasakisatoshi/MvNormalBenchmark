@@ -13,11 +13,19 @@
 
 namespace {
 
+constexpr std::uint64_t comparison_normal_seed = 0x5EED2021ULL;
+
 struct Arguments {
     std::size_t dimension = 0;
     std::size_t samples = 0;
     std::size_t repeats = 0;
+    mvnormal::NormalAlgorithm normal_algorithm =
+        mvnormal::NormalAlgorithm::MarsagliaPolar;
 };
+
+[[nodiscard]] const char* normal_algorithm_label(mvnormal::NormalAlgorithm algorithm) {
+    return algorithm == mvnormal::NormalAlgorithm::MarsagliaPolar ? "polar" : "ziggurat";
+}
 
 [[nodiscard]] std::size_t parse_positive_size(const std::string& text,
                                               const char* option) {
@@ -47,6 +55,15 @@ struct Arguments {
             arguments.samples = parse_positive_size(value, "--samples");
         } else if (option == "--repeats") {
             arguments.repeats = parse_positive_size(value, "--repeats");
+        } else if (option == "--normal") {
+            if (value == "polar") {
+                arguments.normal_algorithm = mvnormal::NormalAlgorithm::MarsagliaPolar;
+            } else if (value == "ziggurat") {
+                arguments.normal_algorithm = mvnormal::NormalAlgorithm::Ziggurat;
+            } else {
+                throw std::invalid_argument(
+                    "--normal must be polar or ziggurat");
+            }
         } else {
             throw std::invalid_argument("unknown option: " + option);
         }
@@ -66,24 +83,25 @@ int main(int argc, char** argv) {
         const Arguments arguments = parse_arguments(argc, argv);
 
         const auto setup_start = std::chrono::steady_clock::now();
-        std::vector<double> mean(arguments.dimension, 0.0);
+        std::vector<double> mean(arguments.dimension);
         std::vector<double> covariance(arguments.dimension * arguments.dimension,
                                        0.0);
-        // A deterministic, well-conditioned SPD covariance for comparable runs.
+        // Shared benchmark case: mu[i] = 0.01*i and
+        // Sigma[i,j] = 0.25^abs(i-j). This Toeplitz matrix is SPD.
         for (std::size_t row = 0; row < arguments.dimension; ++row) {
-            for (std::size_t column = 0; column <= row; ++column) {
+            mean[row] = 0.01 * static_cast<double>(row);
+            for (std::size_t column = 0; column < arguments.dimension; ++column) {
+                const std::size_t distance = row > column ? row - column : column - row;
                 const double value =
-                    (row == column) ? 1.0 + 0.01 * static_cast<double>(row + 1)
-                                    : 0.01;
+                    std::ldexp(1.0, -2 * static_cast<int>(distance));
                 covariance[row * arguments.dimension + column] = value;
-                covariance[column * arguments.dimension + row] = value;
             }
         }
         const mvnormal::MvNormal distribution(
             mean, covariance, arguments.dimension);
         const auto setup_end = std::chrono::steady_clock::now();
 
-        std::mt19937_64 rng(0x4d764e6e6f726dULL);
+        mvnormal::NormalRng rng(comparison_normal_seed, arguments.normal_algorithm);
         std::vector<double> output(arguments.dimension);
         std::vector<double> sample_times;
         sample_times.reserve(arguments.repeats);
@@ -113,7 +131,9 @@ int main(int argc, char** argv) {
         const double setup_seconds =
             std::chrono::duration<double>(setup_end - setup_start).count();
 
-        std::cout << std::setprecision(17) << "cxx," << arguments.dimension << ','
+        std::cout << std::setprecision(17) << "cxx-"
+                  << normal_algorithm_label(arguments.normal_algorithm) << ','
+                  << arguments.dimension << ','
                   << arguments.samples << ',' << arguments.repeats << ','
                   << setup_seconds << ',' << average_sample_seconds << ','
                   << minimum_sample_seconds << ',' << checksum << '\n';

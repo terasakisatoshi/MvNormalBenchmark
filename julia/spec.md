@@ -80,6 +80,23 @@ Julia の `Random` は Marsaglia と Tsang が提案した Ziggurat 法を実装
 `Distributions.jl` のベンチマークも `rand!(rng, d, out)` を呼び出します。
 その経路で使われる標準正規乱数生成は `Distributions.jl` と Julia `Random` の実装に委譲されます。
 
+## 自前RNGによる比較
+
+`mvnormal.jl` には、他言語版と同じ `xorshift64` の状態更新を使う `NormalRNG` もあります。
+`MarsagliaPolarRNG(seed)` は Marsaglia の polar 法を使い、`ZigguratRNG(seed)` は256層のZiggurat法を使います。
+共通ベンチマークでは、全言語で標準正規乱数のシードを `0x5EED2021`
+（10進数 `1592598561`）に統一しています。
+
+```julia
+polar_rng = MarsagliaPolarRNG(0x5EED2021)
+ziggurat_rng = ZigguratRNG(0x5EED2021)
+sample!(polar_rng, d, out)
+sample!(ziggurat_rng, d, out)
+```
+
+これらはJulia標準の `Random.default_rng()` とは別の比較用RNGです。
+同じシードと同じアルゴリズムを各言語で使っても、浮動小数点演算順序や数学関数の実装が異なる場合、ビット単位の一致は保証されません。
+
 ## MvNormal の変換
 
 自前実装では、生成した `z` を出力バッファに置き、列 `j` を大きい番号から順に処理します。

@@ -28,6 +28,9 @@ x = μ + L z
 
 これは `Distributions.jl` の `MvNormal` が利用する基本的な whitening / unwhitening の考え方と同じです。
 
+共通ベンチマークでは、入力も統一しています。0始まりの添字に対して
+`μ[i] = 0.01 * i`、`Σ[i,j] = 0.25^abs(i-j)` を使います。
+
 ## 初回セットアップ
 
 Julia の公式実装を使うための依存環境を作成します。
@@ -56,7 +59,16 @@ julia --project=./julia -e 'using Pkg; Pkg.instantiate()'
 ```sh
 julia --project=./julia julia/benchmark.jl \
   --dim 32 --samples 10000 --repeats 3
+
+# 標準正規乱数を Marsaglia polar 法または Ziggurat 法に固定する場合
+julia --project=./julia julia/benchmark.jl \
+  --dim 32 --samples 10000 --repeats 3 --normal polar
+julia --project=./julia julia/benchmark.jl \
+  --dim 32 --samples 10000 --repeats 3 --normal ziggurat
 ```
+
+`--normal julia`（既定値）は Julia/Random の標準実装を使います。`polar` と
+`ziggurat` は他言語版と比較するための自前 xorshift64 実装です。
 
 ### Julia / Distributions.jl 公式実装
 
@@ -119,7 +131,7 @@ python3 benchmark/generate_report.py \
 ./benchmark/run_and_report.sh
 ```
 
-生成されるレポートには、セットアップ時間、サンプリング時間、最速実装に対する相対速度、checksum が含まれます。乱数生成器は言語ごとに異なるため、checksum は速度測定が実際にサンプルを生成したことを確認するための値であり、言語間で一致する必要はありません。
+生成されるレポートには、セットアップ時間、サンプリング時間、最速実装に対する相対速度、checksum が含まれます。`julia-polar`、`cxx-polar` などは乱数アルゴリズムを表す別行です。入力と自前 RNG のシードは統一していますが、Cholesky 分解・浮動小数点演算・加算順序が異なるため、checksum は言語間で一致する必要はありません。
 
 ## ベンチマークの解釈
 

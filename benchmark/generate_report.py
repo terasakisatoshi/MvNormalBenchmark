@@ -104,8 +104,11 @@ def generate_report(rows: list[dict[str, str]], source: Path) -> str:
             "",
             "## Notes",
             "",
-            "- Random-number generators differ by language, so checksums are not "
-            "expected to match across implementations.",
+            "- The custom `polar` and `ziggurat` paths use the common xorshift64 "
+            "seed `0x5EED2021`; checksums can still differ because floating-point "
+            "operations, Cholesky factors, and accumulation order differ.",
+            "- Julia's default and `Distributions.jl` rows use Julia/Random and "
+            "are not part of the common custom-RNG stream.",
             "- Compilation time is not included in the sampling timing.",
             "- The Julia official row is included when `Distributions.jl` is "
             "available in `julia/Project.toml`.",

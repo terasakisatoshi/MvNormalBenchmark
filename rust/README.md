@@ -7,7 +7,7 @@ Rust 2024、標準ライブラリのみで実装した多変量正規分布の�
 x = μ + L z
 ```
 
-で生成します。`z` は Marsaglia の polar 法による標準正規乱数です。
+で生成します。`z` は `--normal` で選択した標準正規乱数アルゴリズムで生成します。
 
 ## ビルド
 
@@ -19,15 +19,19 @@ cargo build --release
 
 ```sh
 cargo run --release -- --dim 8 --samples 100 --repeats 2
+cargo run --release -- --dim 8 --samples 100 --repeats 2 --normal ziggurat
 ```
 
 成功時は次のCSV形式の1行だけを標準出力へ出します。
 
 ```text
-rust,<dim>,<samples>,<repeats>,<setup_sec>,<avg_sample_sec>,<min_sample_sec>,<checksum>
+rust-polar,<dim>,<samples>,<repeats>,<setup_sec>,<avg_sample_sec>,<min_sample_sec>,<checksum>
 ```
 
+`--normal ziggurat` を指定した場合は、先頭列が `rust-ziggurat` になります。
+
 `avg_sample_sec` と `min_sample_sec` は、それぞれ1回の `samples` バッチにかかった時間の平均・最小です。CLIは出力バッファだけを再利用する `sample_inplace` を使います。
+`--normal polar`（既定値）と `--normal ziggurat` で標準正規乱数アルゴリズムを選択できます。
 
 ## ライブラリAPI
 

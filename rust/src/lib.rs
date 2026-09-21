@@ -6,6 +6,67 @@
 
 use std::error::Error;
 use std::fmt;
+use std::sync::OnceLock;
+
+const ZIGGURAT_LAYERS: usize = 256;
+const ZIGGURAT_R: f64 = 3.654_152_885_361_008_8;
+const ZIGGURAT_V: f64 = 0.004_928_673_233_974_658;
+const TWO_POW_63: f64 = 9.223_372_036_854_775_808e18;
+const SIGNED_MAGNITUDE_MASK: u64 = 0x7fff_ffff_ffff_ffff;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NormalAlgorithm {
+    MarsagliaPolar,
+    Ziggurat,
+}
+
+impl NormalAlgorithm {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::MarsagliaPolar => "polar",
+            Self::Ziggurat => "ziggurat",
+        }
+    }
+}
+
+struct ZigguratTables {
+    k: [u64; ZIGGURAT_LAYERS],
+    w: [f64; ZIGGURAT_LAYERS],
+    f: [f64; ZIGGURAT_LAYERS],
+}
+
+impl ZigguratTables {
+    fn new() -> Self {
+        let mut x = [0.0; ZIGGURAT_LAYERS];
+        let mut k = [0; ZIGGURAT_LAYERS];
+        let mut w = [0.0; ZIGGURAT_LAYERS];
+        let mut f = [0.0; ZIGGURAT_LAYERS];
+        let tail_density = (-0.5 * ZIGGURAT_R * ZIGGURAT_R).exp();
+        let q = ZIGGURAT_V / tail_density;
+
+        x[ZIGGURAT_LAYERS - 1] = ZIGGURAT_R;
+        f[0] = 1.0;
+        f[ZIGGURAT_LAYERS - 1] = tail_density;
+        w[0] = q / TWO_POW_63;
+        w[ZIGGURAT_LAYERS - 1] = ZIGGURAT_R / TWO_POW_63;
+        k[0] = (ZIGGURAT_R / q * TWO_POW_63) as u64;
+        k[1] = 0;
+
+        for index in (1..ZIGGURAT_LAYERS - 1).rev() {
+            x[index] = (-2.0 * (ZIGGURAT_V / x[index + 1] + f[index + 1]).ln()).sqrt();
+            f[index] = (-0.5 * x[index] * x[index]).exp();
+            w[index] = x[index] / TWO_POW_63;
+            k[index + 1] = (x[index] / x[index + 1] * TWO_POW_63) as u64;
+        }
+
+        Self { k, w, f }
+    }
+}
+
+fn ziggurat_tables() -> &'static ZigguratTables {
+    static TABLES: OnceLock<ZigguratTables> = OnceLock::new();
+    TABLES.get_or_init(ZigguratTables::new)
+}
 
 /// Errors returned while constructing a multivariate normal distribution.
 #[derive(Debug, Clone, PartialEq)]
@@ -293,11 +354,19 @@ impl MvNormal {
 pub struct StandardRng {
     state: u64,
     spare_normal: Option<f64>,
+    algorithm: NormalAlgorithm,
 }
 
 impl StandardRng {
     /// Create a generator from a non-zero or zero seed.
     pub fn new(seed: u64) -> Self {
+        Self::with_algorithm(seed, NormalAlgorithm::MarsagliaPolar)
+    }
+
+    pub fn with_algorithm(seed: u64, algorithm: NormalAlgorithm) -> Self {
+        if algorithm == NormalAlgorithm::Ziggurat {
+            let _ = ziggurat_tables();
+        }
         Self {
             state: if seed == 0 {
                 0x9E37_79B9_7F4A_7C15
@@ -305,7 +374,12 @@ impl StandardRng {
                 seed
             },
             spare_normal: None,
+            algorithm,
         }
+    }
+
+    pub fn algorithm(&self) -> NormalAlgorithm {
+        self.algorithm
     }
 
     #[inline]
@@ -338,9 +412,47 @@ impl StandardRng {
         }
     }
 
+    #[inline]
+    fn standard_normal_ziggurat(&mut self) -> f64 {
+        let tables = ziggurat_tables();
+        loop {
+            let bits = self.next_u64();
+            let index = (bits & (ZIGGURAT_LAYERS as u64 - 1)) as usize;
+            let sign = if bits & (1_u64 << 63) == 0 { 1.0 } else { -1.0 };
+            let magnitude = bits & SIGNED_MAGNITUDE_MASK;
+            let x = magnitude as f64 * tables.w[index];
+            if magnitude < tables.k[index] {
+                return sign * x;
+            }
+
+            if index == 0 {
+                loop {
+                    let tail_x = -self.uniform_open01().ln() / ZIGGURAT_R;
+                    let tail_y = -self.uniform_open01().ln();
+                    if 2.0 * tail_y >= tail_x * tail_x {
+                        return sign * (ZIGGURAT_R + tail_x);
+                    }
+                }
+            }
+
+            let y =
+                tables.f[index] + self.uniform_open01() * (tables.f[index - 1] - tables.f[index]);
+            if y < (-0.5 * x * x).exp() {
+                return sign * x;
+            }
+        }
+    }
+
     /// Fill a slice with independent N(0, 1) values.
     #[inline]
     pub fn fill_standard_normals(&mut self, output: &mut [f64]) {
+        if self.algorithm == NormalAlgorithm::Ziggurat {
+            for value in output.iter_mut() {
+                *value = self.standard_normal_ziggurat();
+            }
+            return;
+        }
+
         let mut index = 0;
         if let Some(value) = self.spare_normal.take() {
             if let Some(first) = output.first_mut() {
@@ -363,6 +475,9 @@ impl StandardRng {
     /// Generate one N(0, 1) value using the Marsaglia polar method.
     #[inline]
     pub fn standard_normal(&mut self) -> f64 {
+        if self.algorithm == NormalAlgorithm::Ziggurat {
+            return self.standard_normal_ziggurat();
+        }
         if let Some(value) = self.spare_normal.take() {
             return value;
         }
@@ -433,5 +548,13 @@ mod tests {
             .unwrap();
 
         assert_eq!(buffered_output, inplace_output);
+    }
+
+    #[test]
+    fn ziggurat_sampling_is_finite() {
+        let mut rng = StandardRng::with_algorithm(123, NormalAlgorithm::Ziggurat);
+        let mut values = [0.0; 257];
+        rng.fill_standard_normals(&mut values);
+        assert!(values.iter().all(|value| value.is_finite()));
     }
 }

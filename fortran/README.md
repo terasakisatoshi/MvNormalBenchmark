@@ -5,7 +5,7 @@
 サンプリングは次の手順で行います。
 
 1. `Σ = L L'` を Cholesky 分解する。
-2. Marsaglia の polar 法で標準正規ベクトル `z` を生成する。
+2. `--normal` で選択した Marsaglia の polar 法または Ziggurat 法で標準正規ベクトル `z` を生成する。
 3. `x = μ + L z` を計算する。
 
 ## ビルド
@@ -20,13 +20,17 @@ gfortran -std=f2023 -O3 -o benchmark mvnormal.f90 benchmark.f90
 
 ```sh
 ./benchmark --dim 32 --samples 10000 --repeats 3
+./benchmark --dim 32 --samples 10000 --repeats 3 --normal ziggurat
 ```
 
 `--dim=N`、`--samples=N`、`--repeats=N` の形式も使えます。出力は CSV 形式の1行です。
+`--normal polar`（既定値）と `--normal ziggurat` で標準正規乱数アルゴリズムを選択できます。
 
 ```text
-fortran,<dim>,<samples>,<repeats>,<setup_sec>,<avg_sample_sec>,<min_sample_sec>,<checksum>
+fortran-polar,<dim>,<samples>,<repeats>,<setup_sec>,<avg_sample_sec>,<min_sample_sec>,<checksum>
 ```
+
+`--normal ziggurat` を指定した場合は、先頭列が `fortran-ziggurat` になります。
 
 `avg_sample_sec` は各 repeat で `samples` 個を生成した全体時間の平均、`min_sample_sec` は各 repeat の全サンプル時間の最小値です。
 ベンチマークは `sample_inplace` を使い、標準正規乱数と結果を `output` へ直接書き込みます。

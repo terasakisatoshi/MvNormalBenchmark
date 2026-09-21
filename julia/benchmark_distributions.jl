@@ -43,10 +43,8 @@ function main(args)
     repeats = options["repeats"]
 
     Random.seed!(0xc0ffee)
-    setup_rng = Random.default_rng()
-    μ = randn(setup_rng, dim)
-    A = randn(setup_rng, dim, dim)
-    Σ = A * A' + dim * I
+    μ = [0.01 * (index - 1) for index in 1:dim]
+    Σ = [ldexp(1.0, -2 * abs(row - column)) for row in 1:dim, column in 1:dim]
 
     setup_start = time_ns()
     d = MvNormal(μ, Σ)

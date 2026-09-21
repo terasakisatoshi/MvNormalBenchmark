@@ -2,6 +2,156 @@ using LinearAlgebra
 using Random
 import Statistics: mean
 
+const ZIGGURAT_LAYERS = 256
+const ZIGGURAT_R = 3.6541528853610088
+const ZIGGURAT_V = 0.004928673233974658
+const TWO_POW_63 = 9.223372036854775808e18
+const SIGNED_MAGNITUDE_MASK = UInt64(0x7fffffffffffffff)
+
+abstract type AbstractNormalRNG end
+
+mutable struct NormalRNG <: AbstractNormalRNG
+    state::UInt64
+    algorithm::Symbol
+    spare_normal::Float64
+    has_spare::Bool
+end
+
+function NormalRNG(seed::Integer, algorithm::Symbol)
+    algorithm in (:polar, :ziggurat) ||
+        throw(ArgumentError("normal algorithm must be :polar or :ziggurat"))
+    state = UInt64(seed)
+    state == 0 && (state = UInt64(0x9e3779b97f4a7c15))
+    return NormalRNG(state, algorithm, 0.0, false)
+end
+
+MarsagliaPolarRNG(seed::Integer) = NormalRNG(seed, :polar)
+ZigguratRNG(seed::Integer) = NormalRNG(seed, :ziggurat)
+
+@inline function next_u64!(rng::NormalRNG)
+    value = rng.state
+    value = xor(value, value << 13)
+    value = xor(value, value >> 7)
+    value = xor(value, value << 17)
+    rng.state = value
+    return value
+end
+
+@inline function uniform_open01(rng::NormalRNG)
+    return (Float64(next_u64!(rng) >> 11) + 0.5) * (1.0 / 9007199254740992.0)
+end
+
+const ZIGGURAT_TABLES = let
+    x = zeros(Float64, ZIGGURAT_LAYERS)
+    k = zeros(UInt64, ZIGGURAT_LAYERS)
+    w = zeros(Float64, ZIGGURAT_LAYERS)
+    f = zeros(Float64, ZIGGURAT_LAYERS)
+    tail_density = exp(-0.5 * ZIGGURAT_R * ZIGGURAT_R)
+    q = ZIGGURAT_V / tail_density
+
+    x[ZIGGURAT_LAYERS] = ZIGGURAT_R
+    f[1] = 1.0
+    f[ZIGGURAT_LAYERS] = tail_density
+    w[1] = q / TWO_POW_63
+    w[ZIGGURAT_LAYERS] = ZIGGURAT_R / TWO_POW_63
+    k[1] = UInt64(floor(ZIGGURAT_R / q * TWO_POW_63))
+    k[2] = UInt64(0)
+
+    for index in (ZIGGURAT_LAYERS - 1):-1:2
+        x[index] = sqrt(-2.0 * log(ZIGGURAT_V / x[index + 1] + f[index + 1]))
+        f[index] = exp(-0.5 * x[index] * x[index])
+        w[index] = x[index] / TWO_POW_63
+        k[index + 1] = UInt64(floor(x[index] / x[index + 1] * TWO_POW_63))
+    end
+    (k, w, f)
+end
+
+const ZIGGURAT_K = ZIGGURAT_TABLES[1]
+const ZIGGURAT_W = ZIGGURAT_TABLES[2]
+const ZIGGURAT_F = ZIGGURAT_TABLES[3]
+
+@inline function standard_normal_pair!(rng::NormalRNG)
+    while true
+        u = 2.0 * uniform_open01(rng) - 1.0
+        v = 2.0 * uniform_open01(rng) - 1.0
+        radius_squared = u * u + v * v
+        if 0.0 < radius_squared < 1.0
+            scale = sqrt(-2.0 * log(radius_squared) / radius_squared)
+            return u * scale, v * scale
+        end
+    end
+end
+
+@inline function standard_normal_ziggurat!(rng::NormalRNG)
+    while true
+        bits = next_u64!(rng)
+        index = Int(bits & UInt64(0xff)) + 1
+        sign = (bits & (UInt64(1) << 63)) == 0 ? 1.0 : -1.0
+        magnitude = bits & SIGNED_MAGNITUDE_MASK
+        x = Float64(magnitude) * ZIGGURAT_W[index]
+        if magnitude < ZIGGURAT_K[index]
+            return sign * x
+        end
+
+        if index == 1
+            while true
+                tail_x = -log(uniform_open01(rng)) / ZIGGURAT_R
+                tail_y = -log(uniform_open01(rng))
+                if 2.0 * tail_y >= tail_x * tail_x
+                    return sign * (ZIGGURAT_R + tail_x)
+                end
+            end
+        end
+
+        y = ZIGGURAT_F[index] +
+            uniform_open01(rng) * (ZIGGURAT_F[index - 1] - ZIGGURAT_F[index])
+        if y < exp(-0.5 * x * x)
+            return sign * x
+        end
+    end
+end
+
+@inline function standard_normal!(rng::NormalRNG)
+    if rng.algorithm === :ziggurat
+        return standard_normal_ziggurat!(rng)
+    end
+    if rng.has_spare
+        rng.has_spare = false
+        return rng.spare_normal
+    end
+    first, second = standard_normal_pair!(rng)
+    rng.spare_normal = second
+    rng.has_spare = true
+    return first
+end
+
+function fill_standard_normals!(rng::NormalRNG, output::AbstractVector{Float64})
+    if rng.algorithm === :ziggurat
+        @inbounds for index in eachindex(output)
+            output[index] = standard_normal_ziggurat!(rng)
+        end
+        return output
+    end
+
+    index = firstindex(output)
+    if rng.has_spare && !isempty(output)
+        output[index] = standard_normal!(rng)
+        index += 1
+    end
+    @inbounds while index + 1 <= lastindex(output)
+        first, second = standard_normal_pair!(rng)
+        output[index] = first
+        output[index + 1] = second
+        index += 2
+    end
+    if index <= lastindex(output)
+        output[index] = standard_normal!(rng)
+    end
+    return output
+end
+
+const MvNormalRNG = Union{AbstractRNG, NormalRNG}
+
 """
     MvNormal(μ, Σ)
 
@@ -69,7 +219,11 @@ cholesky_factor(d::MvNormal) = copy(d.L)
 Fill `out` with one sample from `d` and return `out`.  The calculation is
 `out = μ + L * z`, with `z` a vector of independent standard normal values.
 """
-function sample!(rng::AbstractRNG, d::MvNormal, out::AbstractVector{Float64})
+function fill_standard_normals!(rng::AbstractRNG, output::AbstractVector{Float64})
+    return randn!(rng, output)
+end
+
+function sample!(rng::MvNormalRNG, d::MvNormal, out::AbstractVector{Float64})
     length(out) == dimension(d) ||
         throw(DimensionMismatch("output vector dimension must agree with distribution"))
 
@@ -77,7 +231,7 @@ function sample!(rng::AbstractRNG, d::MvNormal, out::AbstractVector{Float64})
     # to left so that out[j] still contains z[j] when column j is used.  The
     # entries at indices i >= j have already become partial outputs, so this
     # order permits contiguous column-major access without another buffer.
-    randn!(rng, out)
+    fill_standard_normals!(rng, out)
     @inbounds for j in dimension(d):-1:1
         z_j = out[j]
         out[j] = d.μ[j]
@@ -89,7 +243,7 @@ function sample!(rng::AbstractRNG, d::MvNormal, out::AbstractVector{Float64})
 end
 
 """Draw one sample using the supplied random-number generator."""
-function sample(rng::AbstractRNG, d::MvNormal)
+function sample(rng::MvNormalRNG, d::MvNormal)
     out = Vector{Float64}(undef, dimension(d))
     return sample!(rng, d, out)
 end
@@ -102,9 +256,12 @@ sample(d::MvNormal) = sample(Random.default_rng(), d)
 
 Draw `nsamples` samples.  Each column of the returned matrix is one sample.
 """
-function sample(rng::AbstractRNG, d::MvNormal, nsamples::Integer)
+function sample(rng::MvNormalRNG, d::MvNormal, nsamples::Integer)
     nsamples >= 0 || throw(ArgumentError("number of samples must be non-negative"))
-    z = randn(rng, dimension(d), nsamples)
+    z = Matrix{Float64}(undef, dimension(d), nsamples)
+    for column in axes(z, 2)
+        fill_standard_normals!(rng, @view z[:, column])
+    end
     out = d.L * z
     out .+= d.μ
     return out

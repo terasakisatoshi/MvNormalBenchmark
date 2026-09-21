@@ -10,6 +10,15 @@
 2. 独立な標準正規ベクトル `z` を生成する。
 3. `x = μ + L z` を計算する。
 
+標準正規乱数には、Marsaglia の polar 法と256層の Ziggurat 法を実装します。
+C++・Fortran・Rust と Julia 自前実装の `polar`／`ziggurat` 経路は、比較可能な
+xorshift64 ベースの乱数生成器を使います。Julia の `--normal julia` と
+`Distributions.jl` の経路は Julia/Random の標準実装を使うため、比較用 RNG とは別です。
+共通 runner では、自前 RNG のサンプル生成シードを全言語で `0x5EED2021`
+（10進数 `1592598561`）に統一します。
+ベンチマーク入力も全言語で共通化し、0始まりの添字に対して
+`μ[i] = 0.01 * i`、`Σ[i,j] = 0.25^abs(i-j)` を使います。
+
 言語ごとの実装は次のディレクトリに置きます。
 
 - `julia/`: 自前実装と公式 `Distributions.jl` のベンチマーク
@@ -53,6 +62,10 @@ julia --project=./julia -e 'using Pkg; Pkg.instantiate()'
 # Julia
 julia --project=./julia julia/benchmark.jl \
   --dim 8 --samples 100 --repeats 2
+julia --project=./julia julia/benchmark.jl \
+  --dim 8 --samples 100 --repeats 2 --normal polar
+julia --project=./julia julia/benchmark.jl \
+  --dim 8 --samples 100 --repeats 2 --normal ziggurat
 julia --project=./julia julia/benchmark_distributions.jl \
   --dim 8 --samples 100 --repeats 2
 
@@ -60,6 +73,7 @@ julia --project=./julia julia/benchmark_distributions.jl \
 g++ -std=c++23 -O3 -DNDEBUG -I cxx \
   cxx/benchmark.cpp -o /tmp/mvnormal_cxx
 /tmp/mvnormal_cxx --dim 8 --samples 100 --repeats 2
+/tmp/mvnormal_cxx --dim 8 --samples 100 --repeats 2 --normal ziggurat
 
 # Fortran 2023
 mkdir -p /tmp/mvnormal-fortran-mod
@@ -67,14 +81,24 @@ gfortran -std=f2023 -O3 -J /tmp/mvnormal-fortran-mod \
   fortran/mvnormal.f90 fortran/benchmark.f90 \
   -o /tmp/mvnormal_fortran
 /tmp/mvnormal_fortran --dim 8 --samples 100 --repeats 2
+/tmp/mvnormal_fortran --dim 8 --samples 100 --repeats 2 --normal ziggurat
 
 # Rust 2024
 cargo test --manifest-path rust/Cargo.toml
 cargo run --release --manifest-path rust/Cargo.toml -- \
   --dim 8 --samples 100 --repeats 2
+cargo run --release --manifest-path rust/Cargo.toml -- \
+  --dim 8 --samples 100 --repeats 2 --normal ziggurat
 ```
 
-各ベンチマークは次のCSV 1行を標準出力に出します。
+各 CLI の `--normal` は `polar` または `ziggurat` を受け付けます。省略時は
+`polar` です。Julia 自前実装だけは、Julia 標準 RNG を選ぶ `--normal julia` も
+受け付けます。
+
+各ベンチマークは次のCSV 1行を標準出力に出します。`language` には例えば
+`cxx-polar`、`fortran-ziggurat`、`rust-ziggurat`、`julia-polar` のように
+言語と標準正規乱数方式が入ります。Julia 標準 RNG の行は `julia`、公式実装は
+`julia-distributions` です。
 
 ```text
 language,dim,samples,repeats,setup_sec,avg_sample_sec,min_sample_sec,checksum
@@ -96,6 +120,7 @@ DIM=128 SAMPLES=100000 REPEATS=10 \
 ```
 
 `benchmark/run.sh` は Julia project を自動指定します。`Distributions.jl` が利用できれば、公式 `MvNormal` の行も `julia-distributions` として追加します。
+また、各言語の `polar` と `ziggurat` を自動的に実行します。
 
 ### 4. Markdown レポートを生成する
 
@@ -120,6 +145,8 @@ python3 benchmark/generate_report.py \
 - サンプリング時間は、分布構築とJIT warmupの後に測定します。
 - `avg_sample_sec` と `min_sample_sec` は、1 repeat 内の全サンプル生成時間です。
 - 各言語で乱数生成器が異なるため、`checksum` は実行確認用であり、言語間で一致する必要はありません。
+- `polar` と `ziggurat` の行は標準正規乱数アルゴリズム別の比較であり、同じ方式名だけで数値列の一致を保証するものではありません。
+- ビット単位の数値列を一致させるには、PRNG の状態更新、シード、整数から一様乱数への変換、Ziggurat テーブル、棄却判定、浮動小数点演算、数学関数の実装まで一致させる必要があります。
 - コンパイル時間は比較対象に含めません。
 - `benchmark/.build/`、`rust/target/`、Fortranの `.mod` と実行ファイルは生成物です。ベンチマーク結果は再生成できるため、手作業で修正しません。
 
@@ -132,6 +159,15 @@ cargo test --manifest-path rust/Cargo.toml
 DIM=8 SAMPLES=200 REPEATS=2 ./benchmark/run.sh /tmp/mvnormal-results.csv
 python3 benchmark/generate_report.py \
   /tmp/mvnormal-results.csv /tmp/mvnormal-report.md
+```
+
+Julia の比較経路を個別に確認する場合:
+
+```sh
+julia --project=./julia julia/benchmark.jl \
+  --dim 8 --samples 200 --repeats 2 --normal polar
+julia --project=./julia julia/benchmark.jl \
+  --dim 8 --samples 200 --repeats 2 --normal ziggurat
 ```
 
 出力CSVの全行に同じ `dim`、`samples`、`repeats` が入り、Markdown表に全実装が現れることを確認してください。

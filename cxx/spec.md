@@ -1,30 +1,27 @@
 # C++ 実装の乱数生成仕様
 
-## 一様乱数生成器
+## ベンチマーク用の乱数生成器
 
-ベンチマークでは標準ライブラリの `std::mt19937_64` を使います。
+ベンチマークでは、言語間でアルゴリズムを比較できるように、`NormalRng` が
+64ビット xorshift64 と `NormalAlgorithm` の組み合わせを使います。
+シード `0` は内部で固定の非ゼロ状態に置き換えます。暗号用途には適しません。
+
+`NormalRng` は、`NormalAlgorithm::MarsagliaPolar` と
+`NormalAlgorithm::Ziggurat` を選択できます。
+両方式とも `xorshift64` から一様乱数を生成します。
+Marsaglia polar 法は2個の正規乱数をペアで生成し、Ziggurat法は256層のテーブルを使います。
+一様乱数は xorshift64 出力の上位53ビットを使って
+`(double(next_u64() >> 11) + 0.5) / 2^53` として求めます。
+共通ベンチマークのサンプル生成シードは `0x5EED2021` です。
 
 ```cpp
-std::mt19937_64 rng(0x4d764e6e6f726dULL);
+mvnormal::NormalRng rng(42, mvnormal::NormalAlgorithm::Ziggurat);
+distribution.sample_inplace(rng, output);
 ```
 
-これは 64 ビット出力の Mersenne Twister 系疑似乱数生成器です。
-暗号用途には適しません。
-
-## 標準正規乱数
-
-標準正規乱数は `std::normal_distribution<double>(0.0, 1.0)` から取得します。
-
-```cpp
-value = standard_normal_(rng);
-```
-
-C++ 標準は `std::normal_distribution` の内部変換アルゴリズムを規定していません。
-したがって、Box--Muller 法や Ziggurat 法などの特定方式をこの仕様では仮定しません。
-使用する標準ライブラリの実装やバージョンによって、内部方式と速度が変わる可能性があります。
-
-`standard_normal_` は `MvNormal` オブジェクトに保持して、サンプルごとに再構築しません。
-標準ライブラリ実装が余剰の正規乱数を内部に保持する場合、その状態もサンプル間で再利用されます。
+`MvNormal` の汎用インターフェースには `std::normal_distribution<double>` を渡すこともできます。
+C++ 標準はその内部変換アルゴリズムを規定していないため、標準ライブラリ経路の方式や速度は
+実装・バージョンに依存します。`NormalRng` を渡す経路が、他言語版と比較するベンチマーク経路です。
 
 ## MvNormal の変換
 
@@ -43,4 +40,6 @@ cholesky_[row * dimension + column]
 
 ## 再現性
 
-乱数シードと標準ライブラリが同じでも、`std::normal_distribution` の仕様が内部方式を固定していないため、異なる標準ライブラリ間で標本列の一致は保証されません。
+`NormalRng` についても、全言語で同じ標本列を得るには、xorshift64 のビット演算、シード、
+浮動小数点演算、Ziggurat テーブル、棄却判定まで一致させる必要があります。
+標準ライブラリの `std::normal_distribution` 経路では、標本列の一致は保証されません。
