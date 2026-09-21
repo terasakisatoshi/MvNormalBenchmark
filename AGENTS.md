@@ -29,6 +29,9 @@ xorshift64 ベースの乱数生成器を使います。Julia の `--normal juli
 
 共分散行列は正方形・対称・有限・正定値でなければなりません。次元不一致や不正な共分散行列は、各言語で明示的にエラーにしてください。
 
+保守性を優先し、行列ベクトル変換に手動のブロック最適化は導入しません。
+言語ごとのメモリ配置に合う単純なループを使い、自動ベクトル化はコンパイラに任せます。
+
 ## CodeGraph
 
 リポジトリルートに `.codegraph/` が存在する場合は、コードの場所や呼び出し関係を調べる前に CodeGraph を使います。
@@ -77,6 +80,9 @@ g++ -std=c++23 -O3 -DNDEBUG -I cxx \
 
 # Fortran 2023
 mkdir -p /tmp/mvnormal-fortran-mod
+gfortran -std=f2023 -O0 -g -fcheck=all -J /tmp/mvnormal-fortran-mod \
+  fortran/mvnormal.f90 fortran/test_mvnormal.f90 -o /tmp/test_mvnormal
+/tmp/test_mvnormal
 gfortran -std=f2023 -O3 -J /tmp/mvnormal-fortran-mod \
   fortran/mvnormal.f90 fortran/benchmark.f90 \
   -o /tmp/mvnormal_fortran

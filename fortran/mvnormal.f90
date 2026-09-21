@@ -270,6 +270,12 @@ contains
 
     if (self%algorithm == normal_algorithm_polar) then
       i = 1
+      if (size(values) == 0) return
+      if (self%has_spare) then
+        values(i) = self%spare_normal
+        self%has_spare = .false.
+        i = i + 1
+      end if
       do while (i + 1 <= size(values))
         call normal_rng_polar_pair(self, first, second)
         values(i) = first
@@ -378,14 +384,33 @@ contains
     integer(int64) :: bits
     integer(int64) :: magnitude
     integer :: index
+
+    ! Keep the common rectangle test small enough to inline into array fills.
+    bits = normal_rng_next_u64(self)
+    index = int(iand(bits, int(z'FF', int64)))
+    magnitude = iand(bits, int(z'7FFFFFFFFFFFFFFF', int64))
+    value = real(magnitude, real64) * ziggurat_w(index)
+    if (btest(bits, 63)) value = -value
+    if (magnitude >= ziggurat_k(index)) then
+      value = normal_rng_ziggurat_slow(self, bits)
+    end if
+  end function normal_rng_ziggurat
+
+  function normal_rng_ziggurat_slow(self, first_bits) result(value)
+    type(normal_rng_t), intent(inout) :: self
+    integer(int64), intent(in) :: first_bits
+    real(real64) :: value
+    integer(int64) :: bits
+    integer(int64) :: magnitude
+    integer :: index
     real(real64) :: sign
     real(real64) :: x
     real(real64) :: y
     real(real64) :: tail_x
     real(real64) :: tail_y
 
+    bits = first_bits
     do
-      bits = normal_rng_next_u64(self)
       index = int(iand(bits, int(z'FF', int64)))
       if (btest(bits, 63)) then
         sign = -1.0_real64
@@ -416,7 +441,8 @@ contains
         value = sign * x
         return
       end if
+      bits = normal_rng_next_u64(self)
     end do
-  end function normal_rng_ziggurat
+  end function normal_rng_ziggurat_slow
 
 end module mvnormal_module

@@ -36,3 +36,24 @@ fortran-polar,<dim>,<samples>,<repeats>,<setup_sec>,<avg_sample_sec>,<min_sample
 ベンチマークは `sample_inplace` を使い、標準正規乱数と結果を `output` へ直接書き込みます。
 `sample_into` は `scratch` と `output` を分ける互換APIとして残しています。
 `normal_rng_t` はベンチマーク用の再現可能な乱数生成器で、サンプリング手続きに明示的に渡します。
+
+`sample_inplace` は列優先配置に合わせて1列ずつ処理します。
+Ziggurat の通常の受理経路は、インライン展開しやすい小さな関数に分離しています。
+通常の `do` だけを使い、複数スレッドでの並列化は行いません。
+詳細は [spec.md](spec.md)、全言語の測定結果は [比較レポート](../benchmark/REPORT.md) を参照してください。
+
+## テスト
+
+`fortran/` から次を実行します。
+
+```sh
+gfortran -std=f2023 -O0 -g -fcheck=all -o /tmp/test_mvnormal_debug \
+  mvnormal.f90 test_mvnormal.f90
+/tmp/test_mvnormal_debug
+gfortran -std=f2023 -O3 -o /tmp/test_mvnormal_release \
+  mvnormal.f90 test_mvnormal.f90
+/tmp/test_mvnormal_release
+```
+
+既知の下三角行列から作った共分散行列で `μ + Lz` と照合し、奇数と偶数の次元、非連続配列、両方の乱数方式を検証します。
+乱数列については、配列の一括生成、奇数個を含む分割生成、ペア生成が一致することを確認します。

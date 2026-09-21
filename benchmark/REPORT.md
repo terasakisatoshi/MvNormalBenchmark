@@ -1,6 +1,6 @@
 # MvNormal benchmark report
 
-Generated: `2026-09-21T08:17:37+00:00`
+Generated: `2026-09-21T08:40:38+00:00`
 Input: `benchmark/results.csv`
 
 The primary comparison is `avg_sample_sec`: the elapsed time for all samples in one repeat, averaged over repeats. Lower is faster.
@@ -16,16 +16,16 @@ The primary comparison is `avg_sample_sec`: the elapsed time for all samples in 
 
 | Rank | Language | Setup (ms) | Avg sampling (ms) | Min sampling (ms) | Relative to fastest | Checksum |
 |---:|---|---:|---:|---:|---:|---:|
-| 1 | `julia` | 0.834 | 9.215 | 9.175 | 1.00x | `2.0135557629042931e6` |
-| 2 | `rust-ziggurat` | 0.026 | 9.262 | 8.889 | 1.01x | `2021309.479503571056` |
-| 3 | `cxx-ziggurat` | 0.030 | 9.294 | 9.051 | 1.01x | `2021309.4795035999` |
-| 4 | `julia-ziggurat` | 0.096 | 9.733 | 9.647 | 1.06x | `2.021309479503571e6` |
-| 5 | `fortran-ziggurat` | 0.025 | 13.406 | 12.980 | 1.45x | `2.02130947950357106E+006` |
-| 6 | `julia-polar` | 0.078 | 14.344 | 14.280 | 1.56x | `2.0152758700649042e6` |
-| 7 | `julia-distributions` | 0.040 | 15.260 | 14.616 | 1.66x | `2.0135557629042931e6` |
-| 8 | `rust-polar` | 0.070 | 19.487 | 14.761 | 2.11x | `2015275.870064904215` |
-| 9 | `cxx-polar` | 0.082 | 19.823 | 14.366 | 2.15x | `2015275.8700647992` |
-| 10 | `fortran-polar` | 0.062 | 21.061 | 17.368 | 2.29x | `2.01527587006490421E+006` |
+| 1 | `julia` | 0.083 | 9.270 | 9.229 | 1.00x | `2.0135557629042931e6` |
+| 2 | `cxx-ziggurat` | 0.026 | 9.569 | 9.534 | 1.03x | `2021309.4795035999` |
+| 3 | `rust-ziggurat` | 0.042 | 10.127 | 9.851 | 1.09x | `2021309.479503571056` |
+| 4 | `fortran-ziggurat` | 0.080 | 12.684 | 12.340 | 1.37x | `2.02130947950357106E+006` |
+| 5 | `julia-ziggurat` | 0.090 | 13.916 | 9.808 | 1.50x | `2.021309479503571e6` |
+| 6 | `julia-polar` | 0.080 | 15.293 | 14.987 | 1.65x | `2.0152758700649042e6` |
+| 7 | `julia-distributions` | 0.043 | 16.323 | 15.445 | 1.76x | `2.0135557629042931e6` |
+| 8 | `cxx-polar` | 0.053 | 17.680 | 14.753 | 1.91x | `2015275.8700647992` |
+| 9 | `fortran-polar` | 0.043 | 19.849 | 18.477 | 2.14x | `2.01527587006490421E+006` |
+| 10 | `rust-polar` | 0.038 | 22.164 | 17.025 | 2.39x | `2015275.870064904215` |
 
 ## Notes
 
