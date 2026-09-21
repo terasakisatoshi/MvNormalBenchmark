@@ -258,12 +258,39 @@ Draw `nsamples` samples.  Each column of the returned matrix is one sample.
 """
 function sample(rng::MvNormalRNG, d::MvNormal, nsamples::Integer)
     nsamples >= 0 || throw(ArgumentError("number of samples must be non-negative"))
-    z = Matrix{Float64}(undef, dimension(d), nsamples)
-    for column in axes(z, 2)
-        fill_standard_normals!(rng, @view z[:, column])
+    out = Matrix{Float64}(undef, dimension(d), nsamples)
+    scratch = Matrix{Float64}(undef, dimension(d), nsamples)
+    return sample!(rng, d, out, scratch)
+end
+
+"""
+    sample!(rng, d, out, scratch)
+
+Fill the preallocated matrix `out` with `nsamples` samples from `d` and
+reuse `scratch` for the standard-normal matrix.  Both matrices have shape
+`(dimension(d), nsamples)` and must be distinct.
+"""
+function sample!(rng::MvNormalRNG,
+                 d::MvNormal,
+                 out::AbstractMatrix{Float64},
+                 scratch::AbstractMatrix{Float64})
+    n = dimension(d)
+    size(out, 1) == n ||
+        throw(DimensionMismatch("output row dimension must agree with distribution"))
+    size(scratch) == size(out) ||
+        throw(DimensionMismatch("scratch and output matrix dimensions must agree"))
+    out === scratch &&
+        throw(ArgumentError("scratch and output matrices must be distinct"))
+
+    for column in axes(scratch, 2)
+        fill_standard_normals!(rng, @view scratch[:, column])
     end
-    out = d.L * z
-    out .+= d.μ
+    mul!(out, d.L, scratch)
+    @inbounds for column in axes(out, 2)
+        for row in axes(out, 1)
+            out[row, column] += d.μ[row]
+        end
+    end
     return out
 end
 

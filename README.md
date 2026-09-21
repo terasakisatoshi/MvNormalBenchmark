@@ -133,6 +133,8 @@ python3 benchmark/generate_report.py \
 
 生成されるレポートには、セットアップ時間、サンプリング時間、最速実装に対する相対速度、checksum が含まれます。`julia-polar`、`cxx-polar` などは乱数アルゴリズムを表す別行です。入力と自前 RNG のシードは統一していますが、Cholesky 分解・浮動小数点演算・加算順序が異なるため、checksum は言語間で一致する必要はありません。
 
+Julia で複数サンプルを allocation-free に生成する場合は、出力行列と作業行列を事前確保して `sample!(rng, d, out, scratch)` を使います。
+
 ## ベンチマークの解釈
 
 - `setup_sec`: `μ` と `Σ` から分布を構築し、Cholesky 因子を作る時間

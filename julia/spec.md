@@ -97,6 +97,17 @@ sample!(ziggurat_rng, d, out)
 これらはJulia標準の `Random.default_rng()` とは別の比較用RNGです。
 同じシードと同じアルゴリズムを各言語で使っても、浮動小数点演算順序や数学関数の実装が異なる場合、ビット単位の一致は保証されません。
 
+複数サンプルを繰り返し生成する場合は、出力行列と標準正規作業行列を再利用できます。
+
+```julia
+out = Matrix{Float64}(undef, dimension(d), nsamples)
+scratch = similar(out)
+sample!(ziggurat_rng, d, out, scratch)
+```
+
+この経路は `mul!` で `L * scratch` を `out` に書き込み、反復ごとの行列確保を避けます。
+`out` と `scratch` は別の行列でなければなりません。
+
 ## MvNormal の変換
 
 自前実装では、生成した `z` を出力バッファに置き、列 `j` を大きい番号から順に処理します。
