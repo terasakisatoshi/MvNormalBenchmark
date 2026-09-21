@@ -106,6 +106,7 @@ sample!(ziggurat_rng, d, out, scratch)
 ```
 
 この経路は `mul!` で `L * scratch` を `out` に書き込み、反復ごとの行列確保を避けます。
+`L` は `LowerTriangular` として渡すため、BLAS の三角行列積 (`trmm`) が使われます。
 `out` と `scratch` は別の行列でなければなりません。
 
 ## MvNormal の変換
@@ -115,6 +116,8 @@ sample!(ziggurat_rng, d, out, scratch)
 
 Julia の行列は列優先なので、内側の `i` を `j:n` として `L[i, j]` と `out[i]` を連続アクセスします。
 この逆向き列累積により、追加の正規乱数用ベクトルを確保せずに `out = μ + Lz` を計算します。
+内側の `i` ループは 2 要素ずつ展開し、`muladd` で積和演算として実行します。
+これにより依存関係のない更新を連続して発行できます。
 
 ## ベンチマーク上の注意
 

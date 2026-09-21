@@ -232,11 +232,19 @@ function sample!(rng::MvNormalRNG, d::MvNormal, out::AbstractVector{Float64})
     # entries at indices i >= j have already become partial outputs, so this
     # order permits contiguous column-major access without another buffer.
     fill_standard_normals!(rng, out)
-    @inbounds for j in dimension(d):-1:1
+    n = dimension(d)
+    @inbounds for j in n:-1:1
         z_j = out[j]
         out[j] = d.μ[j]
-        for i in j:dimension(d)
-            out[i] += d.L[i, j] * z_j
+        i = j
+        while i + 1 <= n
+            out[i] = muladd(d.L[i, j], z_j, out[i])
+            out[i + 1] = muladd(d.L[i + 1, j], z_j, out[i + 1])
+            i += 2
+        end
+        while i <= n
+            out[i] = muladd(d.L[i, j], z_j, out[i])
+            i += 1
         end
     end
     return out
@@ -283,7 +291,7 @@ function sample!(rng::MvNormalRNG,
         throw(ArgumentError("scratch and output matrices must be distinct"))
 
     fill_standard_normals!(rng, vec(scratch))
-    mul!(out, d.L, scratch)
+    mul!(out, LowerTriangular(d.L), scratch)
     @inbounds for column in axes(out, 2)
         for row in axes(out, 1)
             out[row, column] += d.μ[row]
