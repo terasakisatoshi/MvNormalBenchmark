@@ -42,7 +42,8 @@ function main(args)
     nsamples = options["samples"]
     repeats = options["repeats"]
 
-    setup_rng = MersenneTwister(0x5eed)
+    Random.seed!(0xc0ffee)
+    setup_rng = Random.default_rng()
     μ = randn(setup_rng, dim)
     A = randn(setup_rng, dim, dim)
     Σ = A * A' + dim * I
@@ -52,7 +53,7 @@ function main(args)
     setup_sec = (time_ns() - setup_start) / 1.0e9
 
     # Compile the official package's sampling path before timing it.
-    warmup_rng = MersenneTwister(0xabad1dea)
+    warmup_rng = Random.default_rng()
     out = Vector{Float64}(undef, dim)
     warmup_checksum = 0.0
     for _ in 1:nsamples
@@ -62,7 +63,7 @@ function main(args)
 
     sample_times = Vector{Float64}(undef, repeats)
     checksum = 0.0
-    rng = MersenneTwister(0xc0ffee)
+    rng = Random.default_rng()
     for repeat in 1:repeats
         start = time_ns()
         for _ in 1:nsamples

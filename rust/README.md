@@ -7,7 +7,7 @@ Rust 2024、標準ライブラリのみで実装した多変量正規分布の�
 x = μ + L z
 ```
 
-で生成します。`z` は Box--Muller 変換による標準正規乱数です。
+で生成します。`z` は Marsaglia の polar 法による標準正規乱数です。
 
 ## ビルド
 
@@ -27,7 +27,7 @@ cargo run --release -- --dim 8 --samples 100 --repeats 2
 rust,<dim>,<samples>,<repeats>,<setup_sec>,<avg_sample_sec>,<min_sample_sec>,<checksum>
 ```
 
-`avg_sample_sec` と `min_sample_sec` は、それぞれ1回の `samples` バッチにかかった時間の平均・最小です。CLIはバッファを再利用する `sample_into` を使います。
+`avg_sample_sec` と `min_sample_sec` は、それぞれ1回の `samples` バッチにかかった時間の平均・最小です。CLIは出力バッファだけを再利用する `sample_inplace` を使います。
 
 ## ライブラリAPI
 
@@ -42,9 +42,8 @@ let mut rng = StandardRng::new(42);
 
 let sample = distribution.sample(&mut rng);
 
-let mut scratch = vec![0.0; distribution.dimension()];
 let mut output = vec![0.0; distribution.dimension()];
-distribution.sample_into(&mut rng, &mut scratch, &mut output)?;
+distribution.sample_inplace(&mut rng, &mut output)?;
 ```
 
 `MvNormal::new` は、平均との次元整合性、共分散行列の正方形・有限値・対称性・正定値性を検証します。`StandardRng` は再現可能なベンチマーク用であり、暗号用途には適しません。

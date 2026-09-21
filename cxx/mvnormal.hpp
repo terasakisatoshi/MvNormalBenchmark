@@ -79,10 +79,36 @@ public:
 
     template <class RandomNumberGenerator>
     [[nodiscard]] std::vector<double> sample(RandomNumberGenerator& rng) const {
-        std::vector<double> scratch(dimension());
         std::vector<double> output(dimension());
-        sample_into(rng, scratch, output);
+        sample_inplace(rng, output);
         return output;
+    }
+
+    // Generate z directly in output and transform it in place.  Rows are
+    // processed from bottom to top so the still-needed z values remain intact.
+    // The row-major layout makes each inner coefficient access contiguous.
+    template <class RandomNumberGenerator>
+    void sample_inplace(RandomNumberGenerator& rng,
+                        std::vector<double>& output) const {
+        const std::size_t dimension_value = dimension();
+        if (output.size() != dimension_value) {
+            throw std::invalid_argument(
+                "output must have size equal to distribution dimension");
+        }
+
+        for (double& value : output) {
+            value = standard_normal_(rng);
+        }
+
+        for (std::size_t row = dimension_value; row > 0; --row) {
+            const std::size_t row_index = row - 1;
+            double value = mean_[row_index];
+            const std::size_t row_start = row_index * dimension_value;
+            for (std::size_t column = 0; column <= row_index; ++column) {
+                value += cholesky_factor_[row_start + column] * output[column];
+            }
+            output[row_index] = value;
+        }
     }
 
     // Fills scratch with standard normal variates and output with the sample.
@@ -100,9 +126,8 @@ public:
             throw std::invalid_argument("scratch and output must be distinct vectors");
         }
 
-        std::normal_distribution<double> standard_normal(0.0, 1.0);
         for (double& value : scratch) {
-            value = standard_normal(rng);
+            value = standard_normal_(rng);
         }
 
         for (std::size_t row = 0; row < dimension_value; ++row) {
@@ -116,6 +141,9 @@ public:
     }
 
 private:
+    // Reuse the distribution object, including any cached normal value.
+    mutable std::normal_distribution<double> standard_normal_{0.0, 1.0};
+
     [[nodiscard]] static std::size_t checked_square_size(std::size_t dimension) {
         if (dimension != 0 &&
             dimension > std::numeric_limits<std::size_t>::max() / dimension) {

@@ -209,13 +209,43 @@ impl MvNormal {
         &self.mean
     }
 
-    /// Draw one sample, allocating a result vector and a temporary normal vector.
+    /// Draw one sample, allocating a result vector.
     pub fn sample(&self, rng: &mut StandardRng) -> Vec<f64> {
-        let mut scratch = vec![0.0; self.dimension];
         let mut output = vec![0.0; self.dimension];
-        self.sample_into(rng, &mut scratch, &mut output)
+        self.sample_inplace(rng, &mut output)
             .expect("internal sample buffers have the correct length");
         output
+    }
+
+    /// Draw one sample directly into an output buffer.
+    ///
+    /// Standard normals are generated in `output`, then rows are processed
+    /// from bottom to top so the still-needed values remain untouched.
+    pub fn sample_inplace(
+        &self,
+        rng: &mut StandardRng,
+        output: &mut [f64],
+    ) -> Result<(), SampleError> {
+        if output.len() != self.dimension {
+            return Err(SampleError::BufferLength {
+                name: "output",
+                expected: self.dimension,
+                actual: output.len(),
+            });
+        }
+
+        rng.fill_standard_normals(output);
+        for row in (0..self.dimension).rev() {
+            let row_start = row * self.dimension;
+            let row_end = row_start + row + 1;
+            let row_factor = &self.cholesky[row_start..row_end];
+            let mut value = self.mean[row];
+            for (factor, normal) in row_factor.iter().zip(&output[..=row]) {
+                value += factor * normal;
+            }
+            output[row] = value;
+        }
+        Ok(())
     }
 
     /// Draw one sample while reusing caller-provided scratch and output buffers.
@@ -240,15 +270,16 @@ impl MvNormal {
             });
         }
 
-        for value in scratch.iter_mut() {
-            *value = rng.standard_normal();
-        }
-        for row in 0..self.dimension {
-            let mut value = self.mean[row];
-            for column in 0..=row {
-                value += self.cholesky[row * self.dimension + column] * scratch[column];
+        rng.fill_standard_normals(scratch);
+        for (row, (mean, output_value)) in self.mean.iter().zip(output.iter_mut()).enumerate() {
+            let row_start = row * self.dimension;
+            let row_end = row_start + row + 1;
+            let row_factor = &self.cholesky[row_start..row_end];
+            let mut value = *mean;
+            for (factor, normal) in row_factor.iter().zip(&scratch[..=row]) {
+                value += factor * normal;
             }
-            output[row] = value;
+            *output_value = value;
         }
         Ok(())
     }
@@ -257,7 +288,7 @@ impl MvNormal {
 /// A deterministic, dependency-free pseudo-random generator.
 ///
 /// It is intended to make examples and benchmarks reproducible, not for
-/// cryptographic use. `standard_normal` uses the Box--Muller transform.
+/// cryptographic use. Standard normal values use the Marsaglia polar method.
 #[derive(Debug, Clone)]
 pub struct StandardRng {
     state: u64,
@@ -268,35 +299,76 @@ impl StandardRng {
     /// Create a generator from a non-zero or zero seed.
     pub fn new(seed: u64) -> Self {
         Self {
-            state: seed,
+            state: if seed == 0 {
+                0x9E37_79B9_7F4A_7C15
+            } else {
+                seed
+            },
             spare_normal: None,
         }
     }
 
+    #[inline]
     fn next_u64(&mut self) -> u64 {
-        // SplitMix64: compact and adequate for this numerical benchmark.
-        self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        // Xorshift64: a compact, fast generator for this numerical benchmark.
         let mut value = self.state;
-        value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        value ^ (value >> 31)
+        value ^= value << 13;
+        value ^= value >> 7;
+        value ^= value << 17;
+        self.state = value;
+        value
     }
 
+    #[inline]
     fn uniform_open01(&mut self) -> f64 {
-        // The added half-unit keeps the Box--Muller logarithm away from zero.
+        // The added half-unit keeps the polar transform away from exact bounds.
         ((self.next_u64() >> 11) as f64 + 0.5) * (1.0 / 9_007_199_254_740_992.0)
     }
 
-    /// Generate one N(0, 1) value using Box--Muller and one-value caching.
+    #[inline]
+    fn standard_normal_pair(&mut self) -> (f64, f64) {
+        loop {
+            let u = 2.0 * self.uniform_open01() - 1.0;
+            let v = 2.0 * self.uniform_open01() - 1.0;
+            let radius_squared = u * u + v * v;
+            if radius_squared > 0.0 && radius_squared < 1.0 {
+                let scale = (-2.0 * radius_squared.ln() / radius_squared).sqrt();
+                return (u * scale, v * scale);
+            }
+        }
+    }
+
+    /// Fill a slice with independent N(0, 1) values.
+    #[inline]
+    pub fn fill_standard_normals(&mut self, output: &mut [f64]) {
+        let mut index = 0;
+        if let Some(value) = self.spare_normal.take() {
+            if let Some(first) = output.first_mut() {
+                *first = value;
+                index = 1;
+            }
+        }
+
+        while index + 1 < output.len() {
+            let (first, second) = self.standard_normal_pair();
+            output[index] = first;
+            output[index + 1] = second;
+            index += 2;
+        }
+        if index < output.len() {
+            output[index] = self.standard_normal();
+        }
+    }
+
+    /// Generate one N(0, 1) value using the Marsaglia polar method.
+    #[inline]
     pub fn standard_normal(&mut self) -> f64 {
         if let Some(value) = self.spare_normal.take() {
             return value;
         }
-        let radius = (-2.0 * self.uniform_open01().ln()).sqrt();
-        let angle = 2.0 * std::f64::consts::PI * self.uniform_open01();
-        let (sin, cos) = angle.sin_cos();
-        self.spare_normal = Some(radius * sin);
-        radius * cos
+        let (first, second) = self.standard_normal_pair();
+        self.spare_normal = Some(second);
+        first
     }
 }
 
@@ -334,5 +406,32 @@ mod tests {
             .sample_into(&mut rng, &mut scratch, &mut output)
             .unwrap();
         assert!(output.iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn sample_inplace_matches_buffered_sampling() {
+        let distribution = MvNormal::new(
+            vec![0.5, -1.0, 2.0],
+            vec![
+                vec![2.0, 0.1, 0.2],
+                vec![0.1, 1.5, 0.0],
+                vec![0.2, 0.0, 1.2],
+            ],
+        )
+        .unwrap();
+        let mut buffered_rng = StandardRng::new(123);
+        let mut inplace_rng = StandardRng::new(123);
+        let mut scratch = vec![0.0; 3];
+        let mut buffered_output = vec![0.0; 3];
+        let mut inplace_output = vec![0.0; 3];
+
+        distribution
+            .sample_into(&mut buffered_rng, &mut scratch, &mut buffered_output)
+            .unwrap();
+        distribution
+            .sample_inplace(&mut inplace_rng, &mut inplace_output)
+            .unwrap();
+
+        assert_eq!(buffered_output, inplace_output);
     }
 }

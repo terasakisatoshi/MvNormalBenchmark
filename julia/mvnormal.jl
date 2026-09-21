@@ -73,16 +73,17 @@ function sample!(rng::AbstractRNG, d::MvNormal, out::AbstractVector{Float64})
     length(out) == dimension(d) ||
         throw(DimensionMismatch("output vector dimension must agree with distribution"))
 
-    # Generate z directly in the output buffer.  Since L is lower
-    # triangular, processing rows from bottom to top lets us overwrite
-    # out[i] after all z[j] needed by that row (j < i) have been read.
+    # Generate z directly in the output buffer.  Process columns from right
+    # to left so that out[j] still contains z[j] when column j is used.  The
+    # entries at indices i >= j have already become partial outputs, so this
+    # order permits contiguous column-major access without another buffer.
     randn!(rng, out)
-    @inbounds for i in dimension(d):-1:1
-        value = d.μ[i]
-        for j in 1:i
-            value += d.L[i, j] * out[j]
+    @inbounds for j in dimension(d):-1:1
+        z_j = out[j]
+        out[j] = d.μ[j]
+        for i in j:dimension(d)
+            out[i] += d.L[i, j] * z_j
         end
-        out[i] = value
     end
     return out
 end

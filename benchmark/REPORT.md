@@ -1,7 +1,7 @@
 # MvNormal benchmark report
 
-Generated: `2026-09-21T05:44:32+00:00`
-Input: `/Users/terasaki/work/terasakisatoshi/MvNormal/benchmark/results.csv`
+Generated: `2026-09-21T06:32:47+00:00`
+Input: `benchmark/results.csv`
 
 The primary comparison is `avg_sample_sec`: the elapsed time for all samples in one repeat, averaged over repeats. Lower is faster.
 
@@ -16,11 +16,11 @@ The primary comparison is `avg_sample_sec`: the elapsed time for all samples in 
 
 | Rank | Language | Setup (ms) | Avg sampling (ms) | Min sampling (ms) | Relative to fastest | Checksum |
 |---:|---|---:|---:|---:|---:|---:|
-| 1 | `julia` | 0.064 | 15.578 | 15.556 | 1.00x | `558932.2140488301` |
-| 2 | `julia-distributions` | 0.024 | 15.706 | 15.526 | 1.01x | `558932.2140488295` |
-| 3 | `cxx` | 0.073 | 21.320 | 16.038 | 1.37x | `-2609.6076536198825` |
-| 4 | `fortran` | 0.087 | 31.560 | 26.024 | 2.03x | `3.14834553375710314E+006` |
-| 5 | `rust` | 0.078 | 35.881 | 30.163 | 2.30x | `2008496.332629454555` |
+| 1 | `julia` | 1.093 | 9.061 | 9.003 | 1.00x | `-52654.41119174457` |
+| 2 | `julia-distributions` | 0.026 | 15.112 | 14.663 | 1.67x | `-52654.411191744526` |
+| 3 | `rust` | 0.048 | 17.434 | 15.284 | 1.92x | `2010703.010879529640` |
+| 4 | `cxx` | 0.041 | 19.028 | 16.895 | 2.10x | `-2609.6076536198825` |
+| 5 | `fortran` | 0.061 | 24.680 | 20.336 | 2.72x | `3.15234645558872772E+006` |
 
 ## Notes
 

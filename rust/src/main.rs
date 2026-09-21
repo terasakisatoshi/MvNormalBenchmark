@@ -66,7 +66,6 @@ fn run(config: Config) -> Result<(), String> {
     let setup_sec = setup_start.elapsed().as_secs_f64();
 
     let mut rng = StandardRng::new(0x5EED_2021);
-    let mut scratch = vec![0.0; config.dimension];
     let mut output = vec![0.0; config.dimension];
     let mut durations = Vec::with_capacity(config.repeats);
     let mut checksum = 0.0;
@@ -75,7 +74,7 @@ fn run(config: Config) -> Result<(), String> {
         let start = Instant::now();
         for _ in 0..config.samples {
             distribution
-                .sample_into(&mut rng, &mut scratch, &mut output)
+                .sample_inplace(&mut rng, &mut output)
                 .map_err(|error| error.to_string())?;
             checksum += output.iter().sum::<f64>();
         }

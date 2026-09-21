@@ -5,7 +5,7 @@
 サンプリングは次の手順で行います。
 
 1. `Σ = L L'` を Cholesky 分解する。
-2. Box--Muller 法で標準正規ベクトル `z` を生成する。
+2. Marsaglia の polar 法で標準正規ベクトル `z` を生成する。
 3. `x = μ + L z` を計算する。
 
 ## ビルド
@@ -29,4 +29,6 @@ fortran,<dim>,<samples>,<repeats>,<setup_sec>,<avg_sample_sec>,<min_sample_sec>,
 ```
 
 `avg_sample_sec` は各 repeat で `samples` 個を生成した全体時間の平均、`min_sample_sec` は各 repeat の全サンプル時間の最小値です。
-サンプリングの実行中は `scratch` と `output` を再利用するため、サンプルごとの配列確保は行いません。
+ベンチマークは `sample_inplace` を使い、標準正規乱数と結果を `output` へ直接書き込みます。
+`sample_into` は `scratch` と `output` を分ける互換APIとして残しています。
+`normal_rng_t` はベンチマーク用の再現可能な乱数生成器で、サンプリング手続きに明示的に渡します。

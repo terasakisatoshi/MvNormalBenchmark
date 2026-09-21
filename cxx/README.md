@@ -28,7 +28,9 @@ g++ -std=c++23 -O3 -Wall -Wextra -pedantic benchmark.cpp -o benchmark
 cxx,<dim>,<samples>,<repeats>,<setup_sec>,<avg_sample_sec>,<min_sample_sec>,<checksum>
 ```
 
-`sample_into` は、標準正規乱数を入れる `scratch` と結果を入れる `output` を呼び出し側で事前確保し、サンプルごとの一時ベクトル確保を避けます。
+`sample_inplace` は、標準正規乱数を `output` に直接生成し、行優先レイアウトに合わせて後ろの行から変換します。
+そのため、サンプルごとの一時ベクトルを使いません。
+`sample_into` は、`scratch` と `output` を分けて使う互換APIとして残しています。
 
 ```cpp
 #include "mvnormal.hpp"
@@ -44,7 +46,6 @@ std::vector<double> covariance{
 mvnormal::MvNormal distribution(mean, covariance, 2);
 
 std::mt19937_64 rng(42);
-std::vector<double> scratch(2);
 std::vector<double> output(2);
-distribution.sample_into(rng, scratch, output);
+distribution.sample_inplace(rng, output);
 ```

@@ -1,6 +1,6 @@
 program mvnormal_benchmark
-  use iso_fortran_env, only : real64, int32, output_unit
-  use mvnormal_module, only : mvnormal_t, mvnormal_create
+  use iso_fortran_env, only : real64, int32, int64, output_unit
+  use mvnormal_module, only : mvnormal_t, mvnormal_create, normal_rng_t
   implicit none
 
   integer(int32) :: dimension
@@ -12,19 +12,16 @@ program mvnormal_benchmark
   integer :: j
   integer :: repeat_index
   integer :: sample_index
-  integer :: seed_size
   character(len=256) :: argument
   character(len=256) :: value
   real(real64), allocatable :: mean(:)
   real(real64), allocatable :: covariance(:,:)
-  real(real64), allocatable :: scratch(:)
   real(real64), allocatable :: output(:)
-  integer, allocatable :: seed(:)
   type(mvnormal_t) :: distribution
-  real(real64) :: setup_start
-  real(real64) :: setup_finish
-  real(real64) :: sample_start
-  real(real64) :: sample_finish
+  type(normal_rng_t) :: rng
+  integer(int64) :: clock_start
+  integer(int64) :: clock_finish
+  integer(int64) :: clock_rate
   real(real64) :: setup_seconds
   real(real64) :: total_sample_seconds
   real(real64) :: repeat_sample_seconds
@@ -72,7 +69,7 @@ program mvnormal_benchmark
   end if
 
   allocate(mean(dimension), covariance(dimension,dimension))
-  allocate(scratch(dimension), output(dimension))
+  allocate(output(dimension))
   do i = 1, dimension
     mean(i) = real(i - 1, real64) / real(max(1, dimension), real64)
     do j = 1, dimension
@@ -80,29 +77,27 @@ program mvnormal_benchmark
     end do
   end do
 
-  call random_seed(size=seed_size)
-  allocate(seed(seed_size))
-  do i = 1, seed_size
-    seed(i) = 12345 + 37 * i
-  end do
-  call random_seed(put=seed)
+  call rng%seed(1597463007_int64)
+  call system_clock(count_rate=clock_rate)
 
-  call cpu_time(setup_start)
+  call system_clock(count=clock_start)
   distribution = mvnormal_create(mean, covariance)
-  call cpu_time(setup_finish)
-  setup_seconds = setup_finish - setup_start
+  call system_clock(count=clock_finish)
+  setup_seconds = real(clock_finish - clock_start, real64) / &
+                  real(clock_rate, real64)
 
   total_sample_seconds = 0.0_real64
   minimum_sample_seconds = huge(1.0_real64)
   checksum = 0.0_real64
   do repeat_index = 1, repeats
-    call cpu_time(sample_start)
+    call system_clock(count=clock_start)
     do sample_index = 1, samples
-      call distribution%sample_into(scratch, output)
+      call distribution%sample_inplace(rng, output)
       checksum = checksum + sum(output)
     end do
-    call cpu_time(sample_finish)
-    repeat_sample_seconds = sample_finish - sample_start
+    call system_clock(count=clock_finish)
+    repeat_sample_seconds = real(clock_finish - clock_start, real64) / &
+                            real(clock_rate, real64)
     total_sample_seconds = total_sample_seconds + repeat_sample_seconds
     minimum_sample_seconds = min(minimum_sample_seconds, repeat_sample_seconds)
   end do

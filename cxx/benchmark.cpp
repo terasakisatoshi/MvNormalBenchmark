@@ -84,7 +84,6 @@ int main(int argc, char** argv) {
         const auto setup_end = std::chrono::steady_clock::now();
 
         std::mt19937_64 rng(0x4d764e6e6f726dULL);
-        std::vector<double> scratch(arguments.dimension);
         std::vector<double> output(arguments.dimension);
         std::vector<double> sample_times;
         sample_times.reserve(arguments.repeats);
@@ -93,7 +92,7 @@ int main(int argc, char** argv) {
         for (std::size_t repeat = 0; repeat < arguments.repeats; ++repeat) {
             const auto sample_start = std::chrono::steady_clock::now();
             for (std::size_t sample = 0; sample < arguments.samples; ++sample) {
-                distribution.sample_into(rng, scratch, output);
+                distribution.sample_inplace(rng, output);
                 for (const double value : output) {
                     checksum += value;
                 }
