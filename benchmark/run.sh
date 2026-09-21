@@ -102,6 +102,30 @@ run_rust() {
     done
 }
 
+run_fortran_3rdlib() {
+    local project="$ROOT_DIR/fortran_3rdlib"
+    if ! command -v fpm >/dev/null 2>&1; then
+        echo 'Skipping Fortran stdlib: fpm was not found.' >&2
+        return 0
+    fi
+
+    if ! (cd "$project" && fpm build --profile release) >&2; then
+        echo 'Skipping Fortran stdlib: fpm build failed.' >&2
+        return 0
+    fi
+
+    local benchmark
+    benchmark="$(find "$project/build" -type f \
+        -name 'fortran_3rdlib_benchmark' | head -n 1)"
+    if [[ -z "$benchmark" ]]; then
+        echo 'Skipping Fortran stdlib: benchmark executable was not found.' >&2
+        return 0
+    fi
+
+    "$benchmark" --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" \
+        >> "$OUTPUT_FILE"
+}
+
 run_python() {
     local script="$ROOT_DIR/python/benchmark.py"
     local project="$ROOT_DIR/python"
@@ -128,6 +152,7 @@ run_julia
 run_julia_distributions
 run_cxx
 run_fortran
+run_fortran_3rdlib
 run_rust
 run_python
 

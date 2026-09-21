@@ -1,6 +1,6 @@
 # MvNormal benchmark
 
-`run.sh` は、5言語の実装を同じ条件でビルド・実行し、結果をCSVに集約します。Julia で `Distributions.jl` が利用可能な場合は、公式 `MvNormal` の結果も `julia-distributions` として追加します。Python は `uv`（または NumPy/Numba 入りの `python3`）が見つかる場合に `python-polar`/`python-ziggurat` を追加します。Rust は `rust-rand-distr` と `rust-statrs` も追加します。
+`run.sh` は、5言語の実装を同じ条件でビルド・実行し、結果をCSVに集約します。Julia で `Distributions.jl` が利用可能な場合は、公式 `MvNormal` の結果も `julia-distributions` として追加します。Python は `uv`（または NumPy/Numba 入りの `python3`）が見つかる場合に `python-polar`/`python-ziggurat` を追加します。Rust は `rust-rand-distr` と `rust-statrs` も追加します。`fpm`（Fortran Package Manager）が見つかる場合は、`stdlib` を使ったサードパーティ経路を `fortran-stdlib` として追加します。
 
 Julia の依存環境は `julia/Project.toml` で管理しています。初回だけ次を実行してください。
 
@@ -44,6 +44,11 @@ Python の依存は `python/pyproject.toml` で管理します。初回だけ次
 ```sh
 uv sync --project python
 ```
+
+Fortran の `stdlib` 経路は `fortran_3rdlib/` の fpm プロジェクトで、
+`stdlib_stats_distribution_normal` と `stdlib_linalg` の Cholesky を使います。
+`stdlib` は fpm registry から取得するため、初回ビルド時のみネット接続が必要です。
+他の方式と異なり乱数生成器は `stdlib_random` のため、checksum は独立です。
 
 CSVからMarkdownの速度比較表を生成する場合:
 

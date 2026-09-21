@@ -1,0 +1,28 @@
+name = "fortran_3rdlib"
+version = "0.1.0"
+license = "MIT"
+author = "MvNormalBenchmark contributors"
+maintainer = "MvNormalBenchmark contributors"
+copyright = "2026 MvNormalBenchmark contributors"
+description = "Try third-party Fortran libraries for MvNormal sampling"
+
+[library]
+source-dir = "src"
+
+[dependencies]
+stdlib = "*"
+
+[[executable]]
+name = "fortran_3rdlib"
+source-dir = "app"
+main = "main.f90"
+
+[[executable]]
+name = "fortran_3rdlib_benchmark"
+source-dir = "app"
+main = "benchmark.f90"
+
+[[test]]
+name = "runTests"
+source-dir = "test"
+main = "check.f90"

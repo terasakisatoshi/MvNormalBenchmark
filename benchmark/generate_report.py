@@ -112,6 +112,9 @@ def generate_report(rows: list[dict[str, str]], source: Path) -> str:
             "- The Rust `rand-distr` and `statrs` rows use `StdRng` (and "
             "`rand_distr`'s Zignor Ziggurat inside `statrs`) and are not part of "
             "the common custom-RNG stream.",
+            "- The Fortran `stdlib` row uses `stdlib_stats_distribution_normal` "
+            "and `stdlib_linalg`'s Cholesky and is not part of the common "
+            "custom-RNG stream.",
             "- Compilation time is not included in the sampling timing.",
             "- The Julia official row is included when `Distributions.jl` is "
             "available in `julia/Project.toml`.",

@@ -2,6 +2,7 @@ benchmark/.build/
 benchmark/results.csv
 fortran/*.mod
 fortran/benchmark
+fortran_3rdlib/build/
 rust/target/
 __pycache__/
 python/.venv/
