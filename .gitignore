@@ -1,0 +1,7 @@
+benchmark/.build/
+benchmark/results.csv
+fortran/*.mod
+fortran/benchmark
+rust/target/
+__pycache__/
+.opencode/

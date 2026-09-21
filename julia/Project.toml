@@ -1,0 +1,7 @@
+name = "MvNormalBenchmark"
+uuid = "b6f8d35b-4f9f-4d4f-b0bd-7b5ccf67f0db"
+authors = ["MvNormal benchmark contributors"]
+version = "0.1.0"
+
+[deps]
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
