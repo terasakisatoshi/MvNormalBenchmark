@@ -27,6 +27,11 @@ run_julia() {
         --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" --normal polar >> "$OUTPUT_FILE"
     julia "${JULIA_PROJECT_ARGS[@]}" "$ROOT_DIR/julia/benchmark.jl" \
         --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" --normal ziggurat >> "$OUTPUT_FILE"
+    for normal in julia polar ziggurat; do
+        julia "${JULIA_PROJECT_ARGS[@]}" "$ROOT_DIR/julia/benchmark.jl" \
+            --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" \
+            --normal "$normal" --batch >> "$OUTPUT_FILE"
+    done
 }
 
 run_julia_distributions() {
@@ -40,6 +45,8 @@ run_julia_distributions() {
 
     julia "${JULIA_PROJECT_ARGS[@]}" "$ROOT_DIR/julia/benchmark_distributions.jl" \
         --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" >> "$OUTPUT_FILE"
+    julia "${JULIA_PROJECT_ARGS[@]}" "$ROOT_DIR/julia/benchmark_distributions.jl" \
+        --dim "$DIM" --samples "$SAMPLES" --repeats "$REPEATS" --batch >> "$OUTPUT_FILE"
 }
 
 run_cxx() {

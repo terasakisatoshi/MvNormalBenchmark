@@ -121,3 +121,8 @@ Julia の行列は列優先なので、内側の `i` を `j:n` として `L[i, j
 `julia/benchmark.jl` は自前実装を測定し、`julia/benchmark_distributions.jl` は `Distributions.jl` の公式実装を測定します。
 
 両方とも JIT コンパイル後のサンプリング経路を測定するため、測定前に同じサンプル数のウォームアップを実行します。
+
+`--batch` を付けると、行列版の `sample!(rng, d, out, scratch)` を使って1 repeat 分のサンプルをまとめて生成します。
+標準正規乱数は列ごとに生成し、`mul!` で `L * scratch` を計算するため、乱数列は per-sample 経路と同じです。
+`mul!` は BLAS を使うため、比較を単一スレッドに揃える目的で `BLAS.set_num_threads(1)` を呼びます。
+バッチ経路の行名は `julia-batch`、`julia-polar-batch`、`julia-ziggurat-batch` です。

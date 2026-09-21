@@ -1,6 +1,6 @@
 # MvNormal benchmark
 
-`run.sh` は、5言語の実装を同じ条件でビルド・実行し、結果をCSVに集約します。Julia で `Distributions.jl` が利用可能な場合は、公式 `MvNormal` の結果も `julia-distributions` として追加します。Python は `uv`（または NumPy/Numba 入りの `python3`）が見つかる場合に `python-polar`/`python-ziggurat` を追加します。Rust は `rust-rand-distr` と `rust-statrs` も追加します。`fpm`（Fortran Package Manager）が見つかる場合は、`stdlib` を使ったサードパーティ経路を `fortran-stdlib` として追加します。
+`run.sh` は、5言語の実装を同じ条件でビルド・実行し、結果をCSVに集約します。Julia で `Distributions.jl` が利用可能な場合は、公式 `MvNormal` の結果も `julia-distributions` として追加します。Julia は per-sample 経路に加えて、1 repeat 分をまとめて生成するバッチ経路（`julia-batch`、`julia-polar-batch`、`julia-ziggurat-batch`、`julia-distributions-batch`）も測定します。Python は `uv`（または NumPy/Numba 入りの `python3`）が見つかる場合に `python-polar`/`python-ziggurat` を追加します。Rust は `rust-rand-distr` と `rust-statrs` も追加します。`fpm`（Fortran Package Manager）が見つかる場合は、`stdlib` を使ったサードパーティ経路を `fortran-stdlib` として追加します。
 
 Julia の依存環境は `julia/Project.toml` で管理しています。初回だけ次を実行してください。
 
@@ -34,7 +34,9 @@ DIM=128 SAMPLES=100000 REPEATS=10 ./benchmark/run.sh
 この `Σ` は対称正定値です。配列の格納順序は各言語に適した形式を使います。
 
 Julia の自前実装だけを個別に測定する場合は、`--normal julia`、`--normal polar`、
-`--normal ziggurat` を選択できます。共通 runner は各言語について `polar` と
+`--normal ziggurat` を選択できます。`--batch` を付けると、1 repeat 分の
+サンプルを `mul!` でまとめて生成するバッチ経路になります（`BLAS.set_num_threads(1)`
+で単一スレッドに固定）。共通 runner は各言語について `polar` と
 `ziggurat` の両方を自動的に測定します。Rust はこれに加えて、`rand_distr`
 クレートの Ziggurat を使う `--normal rand-distr` と、`statrs` クレートの
 `MultivariateNormal` を使う `--normal statrs` を測定します。

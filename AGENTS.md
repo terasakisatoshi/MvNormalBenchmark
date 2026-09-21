@@ -26,6 +26,7 @@ Ziggurat）と `--normal statrs`（`statrs` の `MultivariateNormal`）の経路
 - `julia/`: 自前実装と公式 `Distributions.jl` のベンチマーク
 - `cxx/`: C++23 実装
 - `fortran/`: Fortran 2023 実装
+- `fortran_3rdlib/`: fpm と `stdlib` を使うサードパーティ経路
 - `rust/`: Rust 2024 実装（`rand_distr` の Ziggurat を使う `rand-distr` 経路も含む）
 - `python/`: NumPy/Numba 実装
 - `benchmark/`: 共通runner、CSV、Markdownレポート生成
@@ -113,15 +114,17 @@ uv run --project python python/benchmark.py \
 
 各 CLI の `--normal` は `polar` または `ziggurat` を受け付けます。省略時は
 `polar` です。Julia 自前実装だけは、Julia 標準 RNG を選ぶ `--normal julia` も
-受け付けます。Rust だけは `rand_distr` の Zignor Ziggurat を使う
-`--normal rand-distr` と、`statrs::MultivariateNormal` を使う `--normal statrs`
-も受け付けます。
+受け付けます。Julia は `--batch` を付けると、1 repeat 分をまとめて生成する
+バッチ経路（`julia-batch`／`julia-polar-batch`／`julia-ziggurat-batch`／
+`julia-distributions-batch`）になります。Rust だけは `rand_distr` の Zignor
+Ziggurat を使う `--normal rand-distr` と、`statrs::MultivariateNormal` を使う
+`--normal statrs` も受け付けます。
 
 各ベンチマークは次のCSV 1行を標準出力に出します。`language` には例えば
 `cxx-polar`、`fortran-ziggurat`、`rust-ziggurat`、`python-ziggurat`、
 `julia-polar` のように言語と標準正規乱数方式が入ります。Julia 標準 RNG の行は
 `julia`、公式実装は `julia-distributions`、Rust の `rand_distr`／`statrs` 経路は
-`rust-rand-distr`／`rust-statrs` です。
+`rust-rand-distr`／`rust-statrs`、`stdlib` 経路は `fortran-stdlib` です。
 
 ```text
 language,dim,samples,repeats,setup_sec,avg_sample_sec,min_sample_sec,checksum
@@ -143,9 +146,11 @@ DIM=128 SAMPLES=100000 REPEATS=10 \
 ```
 
 `benchmark/run.sh` は Julia project を自動指定します。`Distributions.jl` が利用できれば、公式 `MvNormal` の行も `julia-distributions` として追加します。
-また、各言語の `polar` と `ziggurat` を自動的に実行し、Rust では `rand-distr` と `statrs` も、
+また、各言語の `polar` と `ziggurat` を自動的に実行し、Julia は `--batch` の
+バッチ経路も実行します。Rust では `rand-distr` と `statrs` も、
 Python は `uv`（または NumPy/Numba 入りの `python3`）が見つかる場合に
-`python-polar`／`python-ziggurat` も追加します。
+`python-polar`／`python-ziggurat` も追加します。`fpm` が見つかる場合は
+`stdlib` 経路を `fortran-stdlib` として追加します。
 
 ### 4. Markdown レポートを生成する
 

@@ -282,9 +282,7 @@ function sample!(rng::MvNormalRNG,
     out === scratch &&
         throw(ArgumentError("scratch and output matrices must be distinct"))
 
-    for column in axes(scratch, 2)
-        fill_standard_normals!(rng, @view scratch[:, column])
-    end
+    fill_standard_normals!(rng, vec(scratch))
     mul!(out, d.L, scratch)
     @inbounds for column in axes(out, 2)
         for row in axes(out, 1)
