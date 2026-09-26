@@ -97,17 +97,16 @@ sample!(ziggurat_rng, d, out)
 これらはJulia標準の `Random.default_rng()` とは別の比較用RNGです。
 同じシードと同じアルゴリズムを各言語で使っても、浮動小数点演算順序や数学関数の実装が異なる場合、ビット単位の一致は保証されません。
 
-複数サンプルを繰り返し生成する場合は、出力行列と標準正規作業行列を再利用できます。
+複数サンプルを繰り返し生成する場合は、出力行列を再利用できます。
 
 ```julia
 out = Matrix{Float64}(undef, dimension(d), nsamples)
-scratch = similar(out)
-sample!(ziggurat_rng, d, out, scratch)
+sample!(ziggurat_rng, d, out)
 ```
 
-この経路は `mul!` で `L * scratch` を `out` に書き込み、反復ごとの行列確保を避けます。
+この経路は標準正規乱数を `out` に直接生成し、`lmul!` で `L * out` を
+in-place に書き込み、反復ごとの行列確保を避けます。
 `L` は `LowerTriangular` として渡すため、BLAS の三角行列積 (`trmm`) が使われます。
-`out` と `scratch` は別の行列でなければなりません。
 
 ## MvNormal の変換
 
@@ -125,7 +124,8 @@ Julia の行列は列優先なので、内側の `i` を `j:n` として `L[i, j
 
 両方とも JIT コンパイル後のサンプリング経路を測定するため、測定前に同じサンプル数のウォームアップを実行します。
 
-`--batch` を付けると、行列版の `sample!(rng, d, out, scratch)` を使って1 repeat 分のサンプルをまとめて生成します。
-標準正規乱数は列ごとに生成し、`mul!` で `L * scratch` を計算するため、乱数列は per-sample 経路と同じです。
-`mul!` は BLAS を使うため、比較を単一スレッドに揃える目的で `BLAS.set_num_threads(1)` を呼びます。
+`--batch` を付けると、行列版の `sample!(rng, d, out)` を使って1 repeat 分のサンプルをまとめて生成します。
+標準正規乱数を `out` に直接生成し、`lmul!` で `L * out` を in-place に計算するため、乱数列は per-sample 経路と同じです。
+out-of-place の `mul!` と別の scratch 行列を使う場合に比べ、in-place の三角行列積のほうがわずかに速いです。
+`lmul!` は BLAS を使うため、比較を単一スレッドに揃える目的で `BLAS.set_num_threads(1)` を呼びます。
 バッチ経路の行名は `julia-batch`、`julia-polar-batch`、`julia-ziggurat-batch` です。

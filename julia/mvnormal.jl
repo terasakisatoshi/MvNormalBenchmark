@@ -267,31 +267,26 @@ Draw `nsamples` samples.  Each column of the returned matrix is one sample.
 function sample(rng::MvNormalRNG, d::MvNormal, nsamples::Integer)
     nsamples >= 0 || throw(ArgumentError("number of samples must be non-negative"))
     out = Matrix{Float64}(undef, dimension(d), nsamples)
-    scratch = Matrix{Float64}(undef, dimension(d), nsamples)
-    return sample!(rng, d, out, scratch)
+    return sample!(rng, d, out)
 end
 
 """
-    sample!(rng, d, out, scratch)
+    sample!(rng, d, out)
 
-Fill the preallocated matrix `out` with `nsamples` samples from `d` and
-reuse `scratch` for the standard-normal matrix.  Both matrices have shape
-`(dimension(d), nsamples)` and must be distinct.
+Fill the preallocated matrix `out` with one sample per column from `d`.
+Standard normals are generated directly into `out`, the lower-triangular
+Cholesky factor is applied in place with `lmul!`, and the mean is added.
+Using `out` as the standard-normal buffer as well avoids a separate scratch
+matrix and lets the in-place triangular multiply run slightly faster than an
+out-of-place `mul!` into a second buffer.
 """
-function sample!(rng::MvNormalRNG,
-                 d::MvNormal,
-                 out::AbstractMatrix{Float64},
-                 scratch::AbstractMatrix{Float64})
+function sample!(rng::MvNormalRNG, d::MvNormal, out::StridedMatrix{Float64})
     n = dimension(d)
     size(out, 1) == n ||
         throw(DimensionMismatch("output row dimension must agree with distribution"))
-    size(scratch) == size(out) ||
-        throw(DimensionMismatch("scratch and output matrix dimensions must agree"))
-    out === scratch &&
-        throw(ArgumentError("scratch and output matrices must be distinct"))
 
-    fill_standard_normals!(rng, vec(scratch))
-    mul!(out, LowerTriangular(d.L), scratch)
+    fill_standard_normals!(rng, vec(out))
+    lmul!(LowerTriangular(d.L), out)
     @inbounds for column in axes(out, 2)
         for row in axes(out, 1)
             out[row, column] += d.μ[row]

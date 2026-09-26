@@ -92,15 +92,14 @@ function main(args)
 
     if batch
         out = Matrix{Float64}(undef, dim, nsamples)
-        scratch = Matrix{Float64}(undef, dim, nsamples)
 
         # Compile the batched sampling path before timing it.
-        sample!(warmup_rng, d, out, scratch)
+        sample!(warmup_rng, d, out)
         warmup_checksum = sum(out)
 
         for repeat in 1:repeats
             start = time_ns()
-            sample!(rng, d, out, scratch)
+            sample!(rng, d, out)
             sample_times[repeat] = (time_ns() - start) / 1.0e9
             checksum += sum(out)
         end

@@ -116,7 +116,7 @@ def generate_report(rows: list[dict[str, str]], source: Path) -> str:
             "and `stdlib_linalg`'s Cholesky and is not part of the common "
             "custom-RNG stream.",
             "- The Julia `*-batch` rows generate every sample of a repeat in one "
-            "batched call (`mul!`/BLAS with `BLAS.set_num_threads(1)`), so their "
+            "batched call (`lmul!`/BLAS with `BLAS.set_num_threads(1)`), so their "
             "timing is a batched rather than per-sample comparison.",
             "- Compilation time is not included in the sampling timing.",
             "- The Julia official row is included when `Distributions.jl` is "
